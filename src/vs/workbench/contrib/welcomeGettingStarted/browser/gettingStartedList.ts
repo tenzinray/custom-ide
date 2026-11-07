@@ -55,7 +55,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		this.scrollbar = this._register(new DomScrollableElement(this.list, {}));
 		this._register(this.onDidChangeEntries(() => this.scrollbar.scanDomNode()));
 		this.domElement = $('.index-list.' + options.klass, {},
-			$('h2', {}, options.title),
+			...(options.title ? [$('h2', {}, options.title)] : []),
 			this.scrollbar.getDomNode());
 
 		this._register(this.contextService.onDidChangeContext(e => {

@@ -147,6 +147,41 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.repo-welcome {
+	grid-template-rows: minmax(0, 1fr) min-content;
+	grid-template-areas: ". left-column . right-column ." ". footer footer footer .";
+	box-sizing: border-box;
+	padding-top: 48px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.repo-welcome {
+	grid-template-rows: auto minmax(0, 1fr) min-content;
+	grid-template-areas: "left-column" "right-column" "footer";
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.repo-welcome > .categories-column-right {
+	min-height: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .repo-list {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	margin-bottom: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .repo-list > .monaco-scrollable-element {
+	flex: 1;
+	min-height: 0;
+}
+
+/* DomScrollableElement measures the list itself, not its flex wrapper. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .repo-list > .monaco-scrollable-element > ul {
+	height: 100%;
+	box-sizing: border-box;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories li.showWalkthroughsEntry {
 	display: none;
 }
@@ -239,6 +274,14 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .path {
 	padding-left: 1em;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .repo-list li {
+	padding: 4px 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .repo-list .button-link {
+	text-align: left;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .recently-opened li > .button-link {

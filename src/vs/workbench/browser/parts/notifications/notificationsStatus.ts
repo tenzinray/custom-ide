@@ -124,14 +124,15 @@ export class NotificationsStatus extends Disposable {
 			}
 
 			if (!this.notificationsCenterStatusItem) {
-				this.notificationsCenterStatusItem = this.statusbarService.addEntry(
-					statusProperties,
-					'status.notifications',
-					this.currentAlignment,
-					this.currentAlignment === StatusbarAlignment.LEFT
-						? Number.MAX_SAFE_INTEGER 	// almost leftmost on the left side
-						: Number.NEGATIVE_INFINITY 	// rightmost on the right side
-				);
+				// Hide the notification bell in the status bar; notifications and commands still work.
+				// this.notificationsCenterStatusItem = this.statusbarService.addEntry(
+				// 	statusProperties,
+				// 	'status.notifications',
+				// 	this.currentAlignment,
+				// 	this.currentAlignment === StatusbarAlignment.LEFT
+				// 		? Number.MAX_SAFE_INTEGER 	// almost leftmost on the left side
+				// 		: Number.NEGATIVE_INFINITY 	// rightmost on the right side
+				// );
 			} else {
 				this.notificationsCenterStatusItem.update(statusProperties);
 			}

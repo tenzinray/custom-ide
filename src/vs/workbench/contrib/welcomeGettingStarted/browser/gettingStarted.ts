@@ -38,6 +38,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../platform/path/common/pathService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
@@ -47,7 +48,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultButtonStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWindowOpenable } from '../../../../platform/window/common/window.js';
@@ -71,6 +72,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
+import { createGettingStartedRepoList, type IWelcomeRepo } from './gettingStartedRepoList.js';
 import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -164,7 +166,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private readonly recentlyOpenedList = this._register(new MutableDisposable<GettingStartedIndexList<RecentEntry>>());
 	private readonly startList = this._register(new MutableDisposable<GettingStartedIndexList<IWelcomePageStartEntry>>());
-	private readonly gettingStartedList = this._register(new MutableDisposable<GettingStartedIndexList<IResolvedWalkthrough>>());
+	private readonly repoList = this._register(new MutableDisposable<GettingStartedIndexList<IWelcomeRepo>>());
 
 	private stepsSlide!: HTMLElement;
 	private categoriesSlide!: HTMLElement;
@@ -179,7 +181,6 @@ export class GettingStartedPage extends EditorPane {
 	private readonly categoriesSlideDisposables: DisposableStore;
 	private readonly categoriesSlideShown = observableValue<boolean>(this, false);
 	private layoutAgentsWindowGraphic: (() => void) | undefined;
-	private showFeaturedWalkthrough = true;
 
 	get editorInput(): GettingStartedInput | undefined {
 		return this._input as GettingStartedInput | undefined;
@@ -195,6 +196,7 @@ export class GettingStartedPage extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IWorkbenchThemeService protected override readonly themeService: IWorkbenchThemeService,
 		@IStorageService private storageService: IStorageService,
@@ -526,7 +528,7 @@ export class GettingStartedPage extends EditorPane {
 		const selectedCategory = this.gettingStartedCategories.find(category => category.id === categoryId);
 		if (!selectedCategory) { throw Error('Could not find category with ID ' + categoryId); }
 		this.setHiddenCategories([...this.getHiddenCategories().add(categoryId)]);
-		this.gettingStartedList.value?.rerender();
+
 	}
 
 	private markAllStepsComplete() {
@@ -939,17 +941,12 @@ export class GettingStartedPage extends EditorPane {
 			onShowOnStartupChanged();
 		}));
 
-		const header = $('.header', {},
-			$('h1.product-name.caption', {}, this.productService.nameLong),
-			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
-		);
-
 		const leftColumn = $('.categories-column.categories-column-left', {},);
 		const rightColumn = $('.categories-column.categories-column-right', {},);
 
 		const startList = this.buildStartList();
 		const recentList = this.buildRecentlyOpenedList();
-		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
+		const repoList = this.repoList.value = createGettingStartedRepoList(this.pathService.userHome({ preferLocal: true }), this.fileService, this.hostService, this.contextService);
 
 		const footerChildren: HTMLElement[] = [];
 		const agentsWindowGraphic = this.categoriesSlideDisposables.add(this.instantiationService.createInstance(AgentsWindowGraphic));
@@ -972,38 +969,14 @@ export class GettingStartedPage extends EditorPane {
 		));
 
 		const footer = $('.footer', {}, ...footerChildren);
-		const categoriesContainer = $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,);
+		const categoriesContainer = $('.gettingStartedCategoriesContainer.repo-welcome', {}, leftColumn, rightColumn, footer);
 		const graphic = derived(reader => agentsBanner.visible.read(reader) ? agentsWindowGraphic.shownDesign.read(reader) : undefined);
 		const layoutAgentsWindowGraphic = () => this.fitAgentsWindowGraphic(categoriesContainer, graphic.get() !== undefined);
 
-		const layoutLists = () => {
-			if (gettingStartedList.itemCount) {
-				this.container.classList.remove('noWalkthroughs');
-				reset(rightColumn, gettingStartedList.getDomElement());
-			}
-			else {
-				this.container.classList.add('noWalkthroughs');
-				reset(rightColumn);
-			}
-			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
-			layoutRecentList();
-			layoutAgentsWindowGraphic();
-		};
-
-		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs')) {
-				recentList.setLimit(10);
-				reset(leftColumn, startList.getDomElement());
-				reset(rightColumn, recentList.getDomElement());
-			} else {
-				recentList.setLimit(5);
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
-			}
-		};
-
-		gettingStartedList.onDidChange(layoutLists);
+		reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+		reset(rightColumn, repoList.getDomElement());
+		repoList.onDidChange(() => this.categoriesPageScrollbar?.scanDomNode());
 		recentList.onDidChange(layoutAgentsWindowGraphic);
-		layoutLists();
 
 		reset(this.categoriesSlide, categoriesContainer);
 		this.categoriesPageScrollbar?.scanDomNode();
@@ -1045,22 +1018,6 @@ export class GettingStartedPage extends EditorPane {
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
 			layoutAgentsWindowGraphic();
-		} else if (!this.productService.openToWelcomeMainPage && this.showFeaturedWalkthrough && this.storageService.isNew(StorageScope.APPLICATION) && !this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
-			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
-			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
-
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-				if (first && this.editorInput) {
-					this.currentWalkthrough = first;
-					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined, preserveFocus);
-					this.setSlide('details', true /* firstLaunch */);
-					return;
-				}
-			}
 		}
 
 		this.setSlide('categories');
@@ -1195,7 +1152,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const startList = this.startList.value = new GettingStartedIndexList(
 			{
-				title: localize('start', "Start"),
+				title: '',
 				klass: 'start-container',
 				limit: 10,
 				renderElement: renderStartEntry,
@@ -1208,93 +1165,6 @@ export class GettingStartedPage extends EditorPane {
 		return startList;
 	}
 
-	private buildGettingStartedWalkthroughsList(): GettingStartedIndexList<IResolvedWalkthrough> {
-
-		const renderGetttingStaredWalkthrough = (category: IResolvedWalkthrough): HTMLElement => {
-
-			const renderNewBadge = (category.newItems || category.newEntry) && !category.isFeatured;
-			const newBadge = $('.new-badge', {});
-			if (category.newEntry) {
-				reset(newBadge, $('.new-category', {}, localize('new', "New")));
-			} else if (category.newItems) {
-				reset(newBadge, $('.new-items', {}, localize({ key: 'newItems', comment: ['Shown when a list of items has changed based on an update from a remote source'] }, "Updated")));
-			}
-
-			const featuredBadge = $('.featured-badge', {});
-			const descriptionContent = $('.description-content', {},);
-
-			if (category.isFeatured && this.showFeaturedWalkthrough) {
-				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-full')));
-				reset(descriptionContent, ...renderLabelWithIcons(category.description));
-			}
-
-			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': category.id });
-			reset(titleContent, ...renderLabelWithIcons(category.title));
-
-			return $('button.getting-started-category' + (category.isFeatured && this.showFeaturedWalkthrough ? '.featured' : ''),
-				{
-					'x-dispatch': 'selectCategory:' + category.id,
-					'title': category.description
-				},
-				featuredBadge,
-				$('.main-content', {},
-					this.iconWidgetFor(category),
-					titleContent,
-					renderNewBadge ? newBadge : $('.no-badge'),
-					$('a.codicon.codicon-close.hide-category-button', {
-						'tabindex': 0,
-						'x-dispatch': 'hideCategory:' + category.id,
-						'title': localize('close', "Hide"),
-						'role': 'button',
-						'aria-label': localize('closeAriaLabel', "Hide"),
-					}),
-				),
-				descriptionContent,
-				$('.category-progress', { 'x-data-category-id': category.id, },
-					$('.progress-bar-outer', { 'role': 'progressbar' },
-						$('.progress-bar-inner'))));
-		};
-
-
-
-		const rankWalkthrough = (e: IResolvedWalkthrough) => {
-			let rank: number | null = e.order;
-
-			if (e.isFeatured) { rank += 7; }
-			if (e.newEntry) { rank += 3; }
-			if (e.newItems) { rank += 2; }
-			if (e.recencyBonus) { rank += 4 * e.recencyBonus; }
-
-			if (this.getHiddenCategories().has(e.id)) { rank = null; }
-			return rank;
-		};
-
-		const gettingStartedList = this.gettingStartedList.value = new GettingStartedIndexList(
-			{
-				title: localize('walkthroughs', "Walkthroughs"),
-				klass: 'getting-started',
-				limit: 5,
-				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "More...")),
-				renderElement: renderGetttingStaredWalkthrough,
-				rankElement: rankWalkthrough,
-				contextService: this.contextService,
-			});
-
-		gettingStartedList.onDidChange(() => {
-			const hidden = this.getHiddenCategories();
-			const someWalkthroughsHidden = hidden.size || gettingStartedList.itemCount < this.gettingStartedCategories.filter(c => this.contextService.contextMatchesRules(c.when)).length;
-			this.container.classList.toggle('someWalkthroughsHidden', !!someWalkthroughsHidden);
-			this.registerDispatchListeners();
-			allWalkthroughsHiddenContext.bindTo(this.contextService).set(gettingStartedList.itemCount === 0);
-			this.updateCategoryProgress();
-		});
-
-		gettingStartedList.setEntries(this.gettingStartedCategories);
-		allWalkthroughsHiddenContext.bindTo(this.contextService).set(gettingStartedList.itemCount === 0);
-
-		return gettingStartedList;
-	}
-
 	layout(size: Dimension) {
 		this.detailsScrollbar.value?.scanDomNode();
 
@@ -1302,7 +1172,7 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageScrollbar?.scanDomNode();
 
 		this.startList.value?.layout(size);
-		this.gettingStartedList.value?.layout(size);
+		this.repoList.value?.layout(size);
 		this.recentlyOpenedList.value?.layout(size);
 
 		if (this.editorInput?.selectedStep && this.currentMediaType) {
@@ -1754,11 +1624,8 @@ export class GettingStartedPage extends EditorPane {
 					this.editorInput.walkthroughPageTitle = undefined;
 				}
 
-				if (this.gettingStartedCategories.length !== this.gettingStartedList.value?.itemCount) {
-					// extensions may have changed in the time since we last displayed the walkthrough list
-					// rebuild the list
-					this.buildCategoriesSlide();
-				}
+				// Refresh the repo list when returning from a walkthrough.
+				this.buildCategoriesSlide();
 
 				this.selectStep(undefined);
 				this.setSlide('categories');
