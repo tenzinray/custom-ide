@@ -1,0 +1,17 @@
+{
+  "name": "pi-chat",
+  "displayName": "Pi Chat Audio",
+  "description": "Plays Pi responses through the macOS Siri TTS shortcut.",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": { "vscode": "^1.100.0" },
+  "main": "./out/extension.js",
+  "extensionKind": ["ui"],
+  "activationEvents": ["onCommand:piChat.listen"],
+  "contributes": {
+    "commands": [{ "command": "piChat.listen", "title": "Pi Chat: Listen to Response" }],
+    "menus": { "commandPalette": [{ "command": "piChat.listen", "when": "false" }] }
+  },
+  "capabilities": { "untrustedWorkspaces": { "supported": true } }
+}

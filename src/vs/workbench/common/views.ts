@@ -358,6 +358,7 @@ export interface IViewContainerModel {
 	readonly viewContainer: ViewContainer;
 
 	readonly title: string;
+	setTitleOverride(title: string | undefined): void;
 	readonly icon: ThemeIcon | URI | undefined;
 	readonly keybindingId: string | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean; badgeEnablement?: boolean }>;

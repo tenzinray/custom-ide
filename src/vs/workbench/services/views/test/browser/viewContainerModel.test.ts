@@ -70,6 +70,22 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	});
 
+	test('title override notifies listeners and restores the container title', () => {
+		// eslint-disable-next-line local/code-no-any-casts
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const model = viewDescriptorService.getViewContainerModel(container);
+		let changes = 0;
+		disposableStore.add(model.onDidChangeContainerInfo(event => { if (event.title) { changes++; } }));
+
+		model.setTitleOverride('my-repo');
+		assert.strictEqual(model.title, 'my-repo');
+		model.setTitleOverride('my-repo');
+		assert.strictEqual(changes, 1);
+		model.setTitleOverride(undefined);
+		assert.strictEqual(model.title, 'test');
+		assert.strictEqual(changes, 2);
+	});
+
 	test('register/unregister', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);

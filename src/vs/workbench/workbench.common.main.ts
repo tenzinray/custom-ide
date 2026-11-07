@@ -283,6 +283,9 @@ import './contrib/sash/browser/sash.contribution.js';
 import './contrib/git/browser/git.contributions.js';
 import './contrib/github/browser/githubLinkPresentation.contribution.js';
 
+// Pi conversations
+import './contrib/piChat/browser/piChat.contribution.js';
+
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
 import './contrib/scm/browser/quickDiff.contribution.js';

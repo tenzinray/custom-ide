@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../base/browser/dom.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { listGitRepositories } from '../../workspace/browser/gitRepositories.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
 
 export interface IWelcomeRepo {
@@ -20,7 +20,6 @@ export interface IWelcomeRepo {
 
 /** Lists direct Git repositories in the same ~/Documents/VSCode directory used by Pi UI. */
 export function createGettingStartedRepoList(userHome: URI, fileService: IFileService, hostService: IHostService, contextService: IContextKeyService): GettingStartedIndexList<IWelcomeRepo> {
-	const reposDirectory = joinPath(userHome, 'Documents', 'VSCode');
 	const empty = $('li', {}, localize('welcomePage.noRepos', "No Git repositories found in Documents/VSCode."));
 	const list = new GettingStartedIndexList<IWelcomeRepo>({
 		title: localize('welcomePage.repos', "Repos"),
@@ -40,10 +39,7 @@ export function createGettingStartedRepoList(userHome: URI, fileService: IFileSe
 
 	void (async () => {
 		try {
-			const directory = await fileService.resolve(reposDirectory);
-			const repos = await Promise.all((directory.children ?? []).filter(child => child.isDirectory).map(async child =>
-				await fileService.exists(joinPath(child.resource, '.git')) ? { id: child.resource.toString(), name: child.name, folderUri: child.resource } : undefined));
-			list.setEntries(repos.filter(repo => repo !== undefined).sort((a, b) => a.name.localeCompare(b.name)));
+			list.setEntries((await listGitRepositories(userHome, fileService)).map(repo => ({ ...repo, id: repo.folderUri.toString() })));
 		} catch {
 			list.setEntries([]);
 		}
