@@ -52,6 +52,11 @@ async function main() {
 	await ensureNodeModules();
 	await getElectron();
 	await ensureCompiled();
+	if (process.platform === 'darwin') {
+		const { buildAppleSpeech, prepareAppleSpeechDevelopmentApp } = await import('../dictation-runtime/appleSpeech.ts');
+		buildAppleSpeech();
+		prepareAppleSpeechDevelopmentApp();
+	}
 
 	// Can't require this until after dependencies are installed
 	const { getBuiltInExtensions } = await import('./builtInExtensions.ts');

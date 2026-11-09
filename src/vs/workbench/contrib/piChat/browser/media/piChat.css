@@ -131,6 +131,13 @@
 .pi-chat-composer-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; }
 .pi-chat-dictation, .pi-chat-send { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 9px; }
 .pi-chat-dictation { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+.pi-chat-dictation-status { max-width: 180px; font-size: 11px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-chat-composer[data-dictation="starting"] { border-color: var(--vscode-charts-yellow); background: color-mix(in srgb, var(--vscode-charts-yellow) 8%, var(--vscode-input-background)); }
+.pi-chat-composer[data-dictation="listening"] { border-color: var(--vscode-charts-green); background: color-mix(in srgb, var(--vscode-charts-green) 12%, var(--vscode-input-background)); }
+.pi-chat-composer[data-dictation="stopping"] { border-color: var(--vscode-charts-blue); background: color-mix(in srgb, var(--vscode-charts-blue) 8%, var(--vscode-input-background)); }
+.pi-chat-composer[data-dictation="listening"] .pi-chat-dictation { background: color-mix(in srgb, var(--vscode-charts-green) 20%, var(--vscode-input-background)); color: var(--vscode-charts-green); }
+.pi-chat-composer[data-dictation="starting"] .pi-chat-dictation { color: var(--vscode-charts-yellow); }
+.pi-chat-composer[data-dictation="error"] .pi-chat-dictation-status { color: var(--vscode-errorForeground); }
 .pi-chat-send { background: var(--vscode-button-background); }
 .monaco-workbench .pi-chat-composer .pi-chat-send.codicon { color: #fff; }
 .pi-chat-send:disabled { background: color-mix(in srgb, var(--vscode-button-background) 55%, transparent); }

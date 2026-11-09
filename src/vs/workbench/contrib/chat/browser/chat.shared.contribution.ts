@@ -44,7 +44,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
+import { APPLE_SPEECH_MODEL, DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAppsEnabledConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -380,14 +380,17 @@ configurationRegistry.registerConfiguration({
 			enum: [
 				DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 				DICTATION_MAI_MODEL_ID,
+				APPLE_SPEECH_MODEL,
 			],
 			enumItemLabels: [
 				nls.localize('dictation.model.nemotronMultilingual.label', "Nemotron 3.5 ASR (Multilingual) — On-Device"),
 				nls.localize('dictation.model.mai.label', "MAI — Cloud"),
+				nls.localize('dictation.model.apple.label', "Apple Speech — On-Device (macOS)"),
 			],
 			markdownEnumDescriptions: [
 				nls.localize('dictation.model.nemotronMultilingual', "NVIDIA Nemotron 3.5 multilingual streaming RNN-T, run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Automatic language selection follows the Voice Mode language setting; when that setting is Automatic, dictation uses the configured display language when supported, then the system or browser locale, with model detection as a fallback. Downloaded on first use and cached on disk."),
 				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
+				nls.localize('dictation.model.apple', "Uses Apple's on-device speech recognition on macOS. Audio stays on this Mac. Requires Speech Recognition permission and an installed on-device Dictation language."),
 			],
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service. On the web, user and default on-device selections use cloud transcription because local transcription is unsupported. If policy requires on-device transcription, dictation is unavailable on the web."),
 			default: isWeb ? DICTATION_MAI_MODEL_ID : DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
@@ -410,6 +413,10 @@ configurationRegistry.registerConfiguration({
 						{
 							key: 'dictation.model.mai.policy',
 							value: nls.localize('dictation.model.mai.policy', "Use the cloud transcription service. Audio is streamed to the service.")
+						},
+						{
+							key: 'dictation.model.apple.policy',
+							value: nls.localize('dictation.model.apple.policy', "Use Apple on-device transcription on macOS. Audio does not leave the device.")
 						},
 					]
 				},

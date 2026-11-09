@@ -13,6 +13,7 @@ export class PiChatPromptInput {
 	private historyIndex = -1;
 	private originalDraft = '';
 	private submitting = false;
+	private dictating = false;
 
 	constructor(parent: HTMLElement, private readonly sessionId: string | undefined, private readonly cache: PiChatInputCacheService, private readonly onSend: (text: string) => Promise<void>, private readonly onChange: () => void) {
 		this.input = append(parent, $('textarea', { 'aria-label': localize('piChat.message', "Message"), placeholder: sessionId ? localize('piChat.messagePlaceholder', "Message Pi...") : localize('piChat.chooseConversation', "Select a conversation or start a new chat..."), rows: '2' })) as HTMLTextAreaElement;
@@ -35,7 +36,18 @@ export class PiChatPromptInput {
 		this.resize();
 	}
 
-	get canSend(): boolean { return !!this.sessionId && !this.submitting && !!this.input.value.trim(); }
+	get canSend(): boolean { return !!this.sessionId && !this.submitting && !this.dictating && !!this.input.value.trim(); }
+
+	setDictating(dictating: boolean): void { this.dictating = dictating; this.onChange(); }
+
+	/** Replace only the span owned by the active dictation, preserving the rest of the draft. */
+	replaceDictation(start: number, length: number, text: string): void {
+		this.input.setRangeText(text, start, start + length, 'end');
+		this.historyIndex = -1;
+		this.cacheDraft();
+		this.resize();
+		this.onChange();
+	}
 
 	submit(): void {
 		if (!this.canSend) { return; }

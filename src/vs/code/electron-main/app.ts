@@ -78,6 +78,8 @@ import { IProductService } from '../../platform/product/common/productService.js
 import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
 import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
+import { appleSpeechChannelName } from '../../platform/localTranscription/common/localTranscription.js';
+import { AppleSpeechService } from '../../platform/localTranscription/electron-main/AppleSpeechService.js';
 import { IStateService } from '../../platform/state/node/state.js';
 import { StorageDatabaseChannel } from '../../platform/storage/electron-main/storageIpc.js';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from '../../platform/storage/electron-main/storageMainService.js';
@@ -1453,6 +1455,12 @@ export class CodeApplication extends Disposable {
 		const browserViewGroupChannel = ProxyChannel.fromService(accessor.get(IBrowserViewGroupMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel);
 		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel));
+
+		// Apple Speech must use the macOS app's main run loop and TCC identity.
+		if (isMacintosh) {
+			const appleSpeech = disposables.add(accessor.get(IInstantiationService).createInstance(AppleSpeechService, undefined));
+			mainProcessElectronServer.registerChannel(appleSpeechChannelName, ProxyChannel.fromService(appleSpeech, disposables));
+		}
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

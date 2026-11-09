@@ -19,7 +19,7 @@ import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguage
 import { ChatUtilityModelService, IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
-import { ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { APPLE_SPEECH_MODEL, ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 
 type CleanupTestService = {
 	_configurationService: {
@@ -628,6 +628,14 @@ suite('ChatSpeechToTextService', () => {
 
 		assert.doesNotThrow(() => service._pushAudio(new Float32Array([0.5]), mainWindow));
 		assert.deepStrictEqual(failures, [error]);
+	});
+
+	test('Apple Speech selection never silently falls back to cloud transcription', () => {
+		assert.deepStrictEqual([
+			resolveDictationBackend(APPLE_SPEECH_MODEL, undefined, false),
+			resolveDictationBackend(APPLE_SPEECH_MODEL, undefined, true),
+			resolveDictationBackend('mai', APPLE_SPEECH_MODEL, true),
+		], ['apple', 'apple', 'apple']);
 	});
 
 	test('uses MAI on web and preserves the configured backend on desktop', () => {

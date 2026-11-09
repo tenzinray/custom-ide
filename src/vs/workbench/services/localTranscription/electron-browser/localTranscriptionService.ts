@@ -11,7 +11,8 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ILocalTranscriptionModelStatus, ILocalTranscriptionResult, ILocalTranscriptionService, localTranscriptionChannelName } from '../../../../platform/localTranscription/common/localTranscription.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { ILocalTranscriptionModelStatus, ILocalTranscriptionResult, ILocalTranscriptionService, localTranscriptionChannelName, APPLE_SPEECH_MODEL, appleSpeechChannelName } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { IUtilityProcessWorker, IUtilityProcessWorkerWorkbenchService } from '../../utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
 
 /**
@@ -43,7 +44,9 @@ export class LocalTranscriptionService extends Disposable {
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly isSupported = isOnDeviceTranscriptionSupported();
+	get isSupported(): boolean {
+		return this.configurationService.getValue<string>('dictation.model') === APPLE_SPEECH_MODEL ? platform === 'darwin' : isOnDeviceTranscriptionSupported();
+	}
 
 	private readonly _onDidChangeModelStatus = this._register(new Emitter<ILocalTranscriptionModelStatus>());
 	readonly onDidChangeModelStatus = this._onDidChangeModelStatus.event;
@@ -56,11 +59,14 @@ export class LocalTranscriptionService extends Disposable {
 	private _channel: IChannel | undefined;
 	private _proxy: ILocalTranscriptionService | undefined;
 	private _workerGeneration = 0;
+	private _appleProxy: ILocalTranscriptionService | undefined;
+	private _usingApple = false;
 
 	constructor(
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 	) {
 		super();
 	}
@@ -92,8 +98,8 @@ export class LocalTranscriptionService extends Disposable {
 		const channel = worker.client.getChannel(localTranscriptionChannelName);
 		const proxy = ProxyChannel.toService<ILocalTranscriptionService>(channel, { disableMarshalling: true });
 		this._workerEvents.clear();
-		this._workerEvents.add(proxy.onDidChangeModelStatus(status => this._onDidChangeModelStatus.fire(status)));
-		this._workerEvents.add(proxy.onDidTranscribe(result => this._onDidTranscribe.fire(result)));
+		this._workerEvents.add(proxy.onDidChangeModelStatus(status => { if (!this._usingApple) { this._onDidChangeModelStatus.fire(status); } }));
+		this._workerEvents.add(proxy.onDidTranscribe(result => { if (!this._usingApple) { this._onDidTranscribe.fire(result); } }));
 
 		void worker.onDidTerminate.then(() => {
 			if (this._worker.value === worker) {
@@ -105,6 +111,14 @@ export class LocalTranscriptionService extends Disposable {
 	}
 
 	private _getProxy(): ILocalTranscriptionService {
+		if (this._usingApple) {
+			if (!this._appleProxy) {
+				this._appleProxy = ProxyChannel.toService<ILocalTranscriptionService>(this.mainProcessService.getChannel(appleSpeechChannelName), { disableMarshalling: true });
+				this._register(this._appleProxy.onDidChangeModelStatus(status => { if (this._usingApple) { this._onDidChangeModelStatus.fire(status); } }));
+				this._register(this._appleProxy.onDidTranscribe(result => { if (this._usingApple) { this._onDidTranscribe.fire(result); } }));
+			}
+			return this._appleProxy;
+		}
 		if (!this._proxy) {
 			this._proxy = ProxyChannel.toService<ILocalTranscriptionService>(this._getChannel(), { disableMarshalling: true });
 		}
@@ -114,6 +128,8 @@ export class LocalTranscriptionService extends Disposable {
 	getModelStatus() { return this._getProxy().getModelStatus(); }
 	importModel(options: Parameters<ILocalTranscriptionService['importModel']>[0]) { return this._getProxy().importModel(options); }
 	start(options: { cacheDir: string; model?: string; language?: string }) {
+		this._usingApple = options.model === APPLE_SPEECH_MODEL;
+		if (this._usingApple && platform !== 'darwin') { return Promise.reject(new Error('Apple Speech is available only on macOS.')); }
 		const { proxyUrl, noProxy, proxyStrictSSL, proxyAuthorization } = this._resolveProxyConfig();
 		const runtime = this.productService.dictationRuntime;
 		return this._getProxy().start({
@@ -131,6 +147,7 @@ export class LocalTranscriptionService extends Disposable {
 	pushAudio(chunk: Parameters<ILocalTranscriptionService['pushAudio']>[0]) { return this._getProxy().pushAudio(chunk); }
 	stop() { return this._getProxy().stop(); }
 	async cancel(): Promise<void> {
+		if (this._usingApple) { await this._appleProxy?.cancel(); return; }
 		const proxy = this._proxy;
 		if (!proxy) {
 			return;
@@ -159,6 +176,7 @@ export class LocalTranscriptionService extends Disposable {
 	}
 
 	override dispose(): void {
+		if (this._usingApple) { void this._appleProxy?.cancel(); }
 		this._workerGeneration++;
 		super.dispose();
 	}

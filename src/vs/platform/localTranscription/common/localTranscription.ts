@@ -12,6 +12,10 @@ export const ILocalTranscriptionService = createDecorator<ILocalTranscriptionSer
 /** IPC channel name used to reach the transcription service in the utility process. */
 export const localTranscriptionChannelName = 'localTranscription';
 
+/** Apple Speech uses the application's main process and its macOS permissions. */
+export const appleSpeechChannelName = 'appleSpeech';
+export const APPLE_SPEECH_MODEL = 'apple-speech';
+
 /** Default on-device model used for dictation. */
 export const DEFAULT_LOCAL_TRANSCRIPTION_MODEL = 'nemotron-3.5-asr-streaming-0.6b';
 

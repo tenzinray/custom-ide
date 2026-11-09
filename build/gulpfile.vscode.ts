@@ -22,6 +22,7 @@ import * as cp from 'child_process';
 import * as i18n from './lib/i18n.ts';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
+import { buildAppleSpeech } from './dictation-runtime/appleSpeech.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
@@ -138,6 +139,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 	const task = () => {
 		const out = sourceFolderName;
+		if (platform === 'darwin') { buildAppleSpeech(out, arch as NodeJS.Architecture); }
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
 
 		const checksums = computeChecksums(out, [

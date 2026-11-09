@@ -8,6 +8,7 @@ import path from 'path';
 import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 import { getElectronVersion } from '../lib/electronVersion.ts';
+import { appleSpeechUsageDescription } from '../dictation-runtime/appleSpeech.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const baseDir = path.dirname(import.meta.dirname);
@@ -36,6 +37,7 @@ function getKeychainPath(tempDir: string): string {
 const infoPlistUsageDescriptions: Record<string, string> = {
 	NSAppleEventsUsageDescription: 'An application in Visual Studio Code wants to use AppleScript.',
 	NSMicrophoneUsageDescription: 'An application in Visual Studio Code wants to use the Microphone.',
+	NSSpeechRecognitionUsageDescription: appleSpeechUsageDescription,
 	NSCameraUsageDescription: 'An application in Visual Studio Code wants to use the Camera.',
 	NSAudioCaptureUsageDescription: 'An application in Visual Studio Code wants to use Audio Capture.',
 	NSLocalNetworkUsageDescription: 'The app uses your local network for DNS resolution and to connect to locally running services.',

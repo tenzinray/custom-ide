@@ -13,6 +13,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatSpeechToTextService } from '../../chat/browser/speechToText/chatSpeechToTextService.js';
 import { PiChatSessionHistory, PiChatSessionSummary, PiChatMessage } from '../common/pi-chat-types.js';
 import { PiChatContextUsage } from '../common/pi-chat-context-usage-types.js';
 import { PiChatQueuedPrompt, PiChatRunEvent, PiChatRunSnapshot } from '../common/pi-chat-run-types.js';
@@ -56,7 +59,7 @@ export class PiChatConversationPane extends Disposable {
 	private messageCount = 120;
 	private renderPending = false;
 
-	constructor(parent: HTMLElement, @IInstantiationService instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService) {
+	constructor(parent: HTMLElement, @IInstantiationService instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService) {
 		super();
 		this.loader = instantiationService.createInstance(PiChatSessionLoadService);
 		this.commands = instantiationService.invokeFunction(accessor => accessor.get(ICommandService));
@@ -155,7 +158,7 @@ export class PiChatConversationPane extends Disposable {
 				this.inputCache.setQueued(summary.id, []);
 				this.render();
 			}
-		});
+		}, this.speech, this.configuration, this.logService);
 		this.footerControls.value.setBusy(this.sending);
 	}
 

@@ -6,6 +6,10 @@
 import { $, append, clearNode } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
+import { PiChatDictation } from './PiChatDictation.js';
 import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
 import { PiChatInputCacheService } from '../PiChatInputCacheService.js';
 import { PiChatPromptInput } from './PiChatPromptInput.js';
@@ -18,7 +22,7 @@ export interface PiChatFooterControls extends IDisposable {
 }
 
 /** Composer presentation and local draft state; the conversation pane owns sending. */
-export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSummary | undefined, modelName: string | undefined, models: readonly string[], cache: PiChatInputCacheService, onSelectModel: (model: string) => void, onSend: (text: string) => Promise<void>, onStop: () => Promise<void>): PiChatFooterControls {
+export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSummary | undefined, modelName: string | undefined, models: readonly string[], cache: PiChatInputCacheService, onSelectModel: (model: string) => void, onSend: (text: string) => Promise<void>, onStop: () => Promise<void>, speech: IChatSpeechToTextService, configuration: IConfigurationService, logService: ILogService): PiChatFooterControls {
 	clearNode(footer);
 	const statusBar = new MutableDisposable<PiChatTurnStatusBar>();
 	const statusHost = append(footer, $('.pi-chat-turn-status-host'));
@@ -37,7 +41,9 @@ export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSu
 		append(model, $('span.codicon.codicon-chevron-down', { 'aria-hidden': 'true' }));
 	}
 	const actions = append(controls, $('.pi-chat-composer-actions'));
-	append(actions, $('button.pi-chat-dictation.codicon.codicon-mic', { 'aria-label': localize('piChat.dictation', "Start dictation"), disabled: 'true', title: localize('piChat.dictationUnavailable', "Dictation is not available yet") }));
+	const dictationStatus = append(actions, $('span.pi-chat-dictation-status', { role: 'status', 'aria-live': 'polite' }));
+	const mic = append(actions, $('button.pi-chat-dictation.codicon.codicon-mic', { type: 'button' })) as HTMLButtonElement;
+	const dictation = new PiChatDictation(mic, dictationStatus, promptInput, speech, configuration, logService);
 	const send = append(actions, $('button.pi-chat-send.codicon.codicon-arrow-up', { 'aria-label': localize('piChat.send', "Send message"), title: localize('piChat.send', "Send message") })) as HTMLButtonElement;
 	const note = append(footer, $('.pi-chat-composer-note'));
 	if (summary) {
@@ -56,5 +62,5 @@ export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSu
 	};
 	send.addEventListener('click', () => promptInput.submit());
 	update();
-	return { setBusy, recordEvent: () => statusBar.value?.recordEvent(), restore: text => promptInput.restore(text), dispose: () => statusBar.dispose() };
+	return { setBusy, recordEvent: () => statusBar.value?.recordEvent(), restore: text => promptInput.restore(text), dispose: () => { dictation.dispose(); statusBar.dispose(); } };
 }

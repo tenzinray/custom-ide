@@ -25,7 +25,7 @@ import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL, ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { APPLE_SPEECH_MODEL, DEFAULT_LOCAL_TRANSCRIPTION_MODEL, ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -152,9 +152,10 @@ type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.6-luna';
 /**
  * Which backend transcribes dictation audio:
  * - `nemo`: an on-device model via {@link ILocalTranscriptionService} (Foundry Local).
+ * - `apple`: Apple's on-device recognizer in the macOS application process.
  * - `mai`: the cloud transcription service.
  */
-type DictationBackend = 'nemo' | 'mai';
+type DictationBackend = 'nemo' | 'apple' | 'mai';
 
 type BackendFinalizationResult = {
 	readonly text: string | undefined;
@@ -167,6 +168,8 @@ export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: bo
 
 export function resolveDictationBackend(configuredModel: string | undefined, policyModel: string | undefined, web: boolean): DictationBackend {
 	const model = policyModel ?? configuredModel;
+	// Explicit Apple selection never falls back to sending audio to the cloud.
+	if (model === APPLE_SPEECH_MODEL) { return 'apple'; }
 	return (web && policyModel === undefined) || model === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
 }
 
@@ -379,7 +382,7 @@ export interface IChatSpeechToTextService {
 	/** Abort an in-progress recording without keeping the transcript. */
 	cancel(): Promise<void>;
 
-	/** The backend selected for the current/most-recent session (`nemo` or `mai`). */
+	/** The backend selected for the current/most-recent session (`nemo`, `apple`, or `mai`). */
 	readonly currentBackend: string;
 
 	/**
@@ -812,7 +815,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 
-		if (backend === 'nemo' && !this._localTranscription.isSupported) {
+		if (backend !== 'mai' && !this._localTranscription.isSupported) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
 				message: localize('chatStt.notSupported', "On-device speech-to-text is not available on this platform."),
@@ -839,7 +842,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, generation: number, startGeneration: number): Promise<void> {
-		if (backend === 'nemo') {
+		if (backend !== 'mai') {
 			await this._pendingLocalTeardown;
 			if (!this._isCurrentStart(generation, startGeneration, backend)) {
 				return;
@@ -1336,7 +1339,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 					finalization.text,
 					this._activeBackend !== 'mai' && options?.preserveLiveTranscript === true,
 				);
-			if (this._activeBackend === 'nemo' && finalization.timedOut && !stripDictationFillers(text)) {
+			if (this._activeBackend !== 'mai' && finalization.timedOut && !stripDictationFillers(text)) {
 				this._sessionErrorCode = this._sessionErrorCode || 'transcribe.timeout';
 			}
 		} catch (err) {
@@ -1345,7 +1348,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			}
 			this._sessionErrorCode = this._sessionErrorCode || 'transcribe';
 			this._logService.error('[chat-stt] final transcription failed', err);
-			if (this._activeBackend === 'nemo') {
+			if (this._activeBackend !== 'mai') {
 				this._notificationService.error(localize('chatStt.localTranscribeError', "Could not finish on-device speech-to-text: {0}", toErrorMessage(err)));
 			}
 		}
