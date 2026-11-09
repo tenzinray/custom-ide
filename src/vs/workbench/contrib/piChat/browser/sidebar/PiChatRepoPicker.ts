@@ -7,6 +7,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { GitRepository } from '../../../workspace/browser/gitRepositories.js';
 
 /** Pi UI-style repository picker for a read-only new-chat draft. */
 export class PiChatRepoPicker extends Disposable {
@@ -14,7 +15,7 @@ export class PiChatRepoPicker extends Disposable {
 	private readonly search: HTMLInputElement;
 	private readonly list: HTMLElement;
 	private readonly suggestions: HTMLElement;
-	private repos: { name: string; folderUri: URI }[] = [];
+	private repos: GitRepository[] = [];
 
 	constructor(anchor: HTMLElement, private readonly workspaceFolders: readonly URI[], private readonly editorResource: URI | undefined, private readonly onSelect: (name: string, path: string) => void, private readonly onClose: () => void) {
 		super();
@@ -37,7 +38,7 @@ export class PiChatRepoPicker extends Disposable {
 		this.search.focus();
 	}
 
-	setRepos(repos: { name: string; folderUri: URI }[]): void {
+	setRepos(repos: GitRepository[]): void {
 		this.repos = repos;
 		this.renderSuggestions();
 		this.renderRepos();

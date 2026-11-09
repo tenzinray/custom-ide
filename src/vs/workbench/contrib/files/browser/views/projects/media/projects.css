@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.explorer-projects { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.explorer-projects-search { position: relative; flex: 0 0 auto; margin: 5px 12px 7px; }
+.explorer-projects-search > .codicon { position: absolute; left: 6px; top: 5px; z-index: 1; color: var(--vscode-input-placeholderForeground); pointer-events: none; }
+.explorer-projects-search .monaco-inputbox { width: 100%; }
+.explorer-projects-search .monaco-inputbox input { padding-left: 26px; }
+.explorer-projects-body { position: relative; flex: 1; min-height: 0; }
+.explorer-projects-list { height: 100%; }
+.explorer-projects-message { position: absolute; z-index: 1; top: 0; left: 12px; right: 12px; color: var(--vscode-descriptionForeground); font-size: var(--vscode-font-size); pointer-events: none; }
+.explorer-project-row { display: flex; align-items: center; gap: 6px; padding: 0 12px 0 20px; font-size: var(--vscode-font-size); }
+.explorer-project-row > .codicon { flex-shrink: 0; color: var(--vscode-descriptionForeground); }
+.explorer-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

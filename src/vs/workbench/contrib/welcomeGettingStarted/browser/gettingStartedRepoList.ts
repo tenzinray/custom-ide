@@ -9,13 +9,11 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { listGitRepositories } from '../../workspace/browser/gitRepositories.js';
+import { GitRepository, listGitRepositories } from '../../workspace/browser/gitRepositories.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
 
-export interface IWelcomeRepo {
+export interface IWelcomeRepo extends GitRepository {
 	readonly id: string;
-	readonly name: string;
-	readonly folderUri: URI;
 }
 
 /** Lists direct Git repositories in the same ~/Documents/VSCode directory used by Pi UI. */

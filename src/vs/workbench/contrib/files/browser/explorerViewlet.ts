@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ExplorerView } from './views/explorerView.js';
 import { EmptyView } from './views/emptyView.js';
 import { OpenEditorsView } from './views/openEditorsView.js';
+import { ProjectsView } from './views/projects/ProjectsView.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -67,6 +68,21 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 
 		const viewDescriptorsToRegister: IViewDescriptor[] = [];
 		const viewDescriptorsToDeregister: IViewDescriptor[] = [];
+
+		if (!viewDescriptors.some(view => view.id === ProjectsView.ID)) {
+			viewDescriptorsToRegister.push({
+				id: ProjectsView.ID,
+				name: ProjectsView.NAME,
+				ctorDescriptor: new SyncDescriptor(ProjectsView),
+				containerIcon: Codicon.repo,
+				order: -1,
+				weight: 30,
+				collapsed: true,
+				canToggleVisibility: true,
+				canMoveView: true,
+				focusCommand: { id: 'workbench.explorer.projects.focus' },
+			});
+		}
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
 		if (!viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id)) {
