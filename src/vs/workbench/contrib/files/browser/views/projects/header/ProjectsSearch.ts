@@ -16,7 +16,6 @@ export class ProjectsSearch extends Disposable {
 	constructor(parent: HTMLElement, focusList: () => void, openFirst: () => void) {
 		super();
 		const header = append(parent, $('.explorer-projects-search'));
-		append(header, $('span.codicon.codicon-search', { 'aria-hidden': 'true' }));
 		this.input = this._register(new InputBox(header, undefined, {
 			placeholder: localize('projects.searchPlaceholder', "Search projects"),
 			ariaLabel: localize('projects.searchLabel', "Search projects"),

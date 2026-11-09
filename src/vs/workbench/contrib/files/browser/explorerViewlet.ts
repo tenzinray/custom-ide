@@ -23,6 +23,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, ViewContentGroups } from '../../../common/views.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -237,7 +238,15 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 				}
 			});
 		}
-		return super.createView(viewDescriptor, options);
+		const view = super.createView(viewDescriptor, options);
+		if (viewDescriptor.id === ProjectsView.ID && !view.isExpanded()) {
+			// Start Projects at twice the standard expansion height, without raising
+			// its minimum size or overriding later user resizing in this window.
+			this._register(Event.once(Event.filter(view.onDidChangeExpansionState, expanded => expanded))(() => {
+				this.resizePane(view, view.minimumSize * 2);
+			}));
+		}
+		return view;
 	}
 
 	getExplorerView(): ExplorerView {

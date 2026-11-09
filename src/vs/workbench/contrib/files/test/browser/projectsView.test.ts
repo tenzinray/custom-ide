@@ -52,6 +52,11 @@ suite('Explorer Projects', () => {
 		assert.deepStrictEqual(names(), ['alpha', 'zebra']);
 	});
 
+	test('keeps the search field free of a decorative icon', async () => {
+		const { parent } = await setup();
+		assert.strictEqual(parent.querySelector('.explorer-projects-search .codicon'), null);
+	});
+
 	test('filters projects and restores the list when Escape clears search', async () => {
 		const { names, search, filter } = await setup();
 		filter(' ZE ');
