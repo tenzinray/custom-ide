@@ -12,6 +12,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IsDevelopmentContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, IsSessionsWindowContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
@@ -272,6 +275,23 @@ registerAction2(class ToggleEditorActions extends Action2 {
 			configService.updateValue(ToggleEditorActions.settingsID, 'hidden');
 			storageService.store(ToggleEditorActions.settingsID, location, StorageScope.PROFILE, StorageTarget.USER);
 		}
+	}
+});
+
+/** Restart the development fork in place, keeping its profile and external watcher. */
+registerAction2(class RestartDevelopmentFork extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.restartDevelopmentFork',
+			title: localize('restartDevelopmentFork', 'Restart Development Fork'),
+			icon: Codicon.refresh,
+			precondition: IsDevelopmentContext,
+			menu: [{ id: MenuId.TitleBarAdjacentCenter, order: 100, when: IsDevelopmentContext }]
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IHostService).restart();
 	}
 });
 

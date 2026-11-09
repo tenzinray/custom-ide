@@ -13,9 +13,12 @@ export class PiChatSessionEditorInput extends EditorInput {
 
 	static resourceForSession(id: string): URI { return URI.from({ scheme: 'pi-chat', path: `/${id}` }); }
 
-	constructor(readonly session: PiChatSessionSummary) {
+	constructor(private currentSession: PiChatSessionSummary) {
 		super();
 	}
+
+	get session(): PiChatSessionSummary { return this.currentSession; }
+	updateSession(session: PiChatSessionSummary): void { this.currentSession = session; }
 
 	override get typeId(): string { return PiChatSessionEditorInput.ID; }
 	override get editorId(): string { return 'workbench.editor.piChatSession'; }

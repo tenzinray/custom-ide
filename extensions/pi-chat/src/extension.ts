@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { registerBunOAuthFlows } from '@earendil-works/pi-ai/bun-oauth';
 import { spawn, execFile, ChildProcessWithoutNullStreams } from 'node:child_process';
 import { join } from 'node:path';
 import type { PiChatPlaybackStatus } from '../../../src/vs/workbench/contrib/piChat/common/pi-chat-playback-types.js';
+import { fetchPiChatOpenAILimits } from './PiChatOpenAILimitsService.js';
+import { getPiChatContextUsage } from './PiChatContextUsageService.js';
+import { cancelPiChatPrompt, createPiChatSession, disposePiChatRuns, pollPiChatTurn, queuePiChatPrompt, restorePiChatDraft, sendPiChatPromptNow, startPiChatTurn, stopPiChatTurn } from './PiChatRunService.js';
 
 const script = join(__dirname, '..', 'siri-tts.sh');
 let generation = 0;
@@ -73,6 +77,19 @@ function play(audio: string): Promise<void> {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+	// The same bundled OAuth loaders Pi uses for its standalone binary keep flow imports inside our ESM bundle.
+	registerBunOAuthFlows();
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.createSession', createPiChatSession));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.restoreDraft', restorePiChatDraft));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.startTurn', startPiChatTurn));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.pollTurn', pollPiChatTurn));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.openAILimits', fetchPiChatOpenAILimits));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.contextUsage', getPiChatContextUsage));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.queuePrompt', queuePiChatPrompt));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.cancelPrompt', cancelPiChatPrompt));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.sendPromptNow', sendPiChatPromptNow));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.stopTurn', stopPiChatTurn));
+	context.subscriptions.push({ dispose: disposePiChatRuns });
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.listen', (text: unknown, playbackId: unknown): PiChatPlaybackStatus => {
 		if (typeof text !== 'string' || !text.trim() || typeof playbackId !== 'string') { return playbackStatus(); }
 		stop();

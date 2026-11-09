@@ -20,6 +20,10 @@ export class PiChatSessionListService {
 		@IPathService private readonly pathService: IPathService,
 	) { }
 
+	invalidate(): void {
+		this.indexedFiles = undefined;
+	}
+
 	async listSessions(limit: number): Promise<{ sessions: PiChatSessionSummary[]; hasMore: boolean }> {
 		const files = await this.getFiles();
 		const sessions: PiChatSessionSummary[] = [];

@@ -29,7 +29,7 @@ export class PiChatSessionLoadService {
 
 	async loadSession(summary: PiChatSessionSummary): Promise<PiChatSessionHistory> {
 		if (summary.isDraft) {
-			return { modelName: '', messages: [], usage: { input: 0, output: 0, cacheRead: 0, contextTokens: 0, contextWindow: 0 } };
+			return { modelName: '', messages: [], usage: { input: 0, output: 0, cacheRead: 0 } };
 		}
 		const file = (await this.fileService.readFile(summary.sessionFile)).value.toString();
 		const entries: Entry[] = [];
@@ -51,7 +51,7 @@ export class PiChatSessionLoadService {
 		branch.reverse();
 		const messages: PiChatMessage[] = [];
 		const toolCalls = new Map<string, Extract<PiChatMessage, { kind: 'tool' }>>();
-		const usage = { input: 0, output: 0, cacheRead: 0, contextTokens: 0, contextWindow: 0 };
+		const usage = { input: 0, output: 0, cacheRead: 0 };
 		let modelName = 'Unknown model';
 		for (const entry of branch) {
 			if (entry.type === 'model_change') { modelName = `${entry.provider}/${entry.modelId}`; }
@@ -67,9 +67,6 @@ export class PiChatSessionLoadService {
 				usage.input += message.usage?.input ?? 0;
 				usage.output += message.usage?.output ?? 0;
 				usage.cacheRead += message.usage?.cacheRead ?? 0;
-				if (message.usage?.totalTokens || message.usage?.input) {
-					usage.contextTokens = message.usage.totalTokens || (message.usage.input ?? 0) + (message.usage.output ?? 0) + (message.usage.cacheRead ?? 0) + (message.usage.cacheWrite ?? 0);
-				}
 				if (!Array.isArray(message.content)) { continue; }
 				message.content.forEach((block, index) => {
 					if (block.type === 'text' && block.text?.trim()) { messages.push({ id: `${entry.id}-${index}`, role: 'assistant', kind: 'text', content: block.text }); }

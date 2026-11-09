@@ -1,14 +1,15 @@
 {
   "name": "pi-chat",
-  "displayName": "Pi Chat Audio",
-  "description": "Plays Pi responses through the macOS Siri TTS shortcut.",
+  "displayName": "Pi Chat",
+  "description": "Runs Pi conversations and plays responses through macOS Siri TTS.",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
   "engines": { "vscode": "^1.100.0" },
-  "main": "./out/extension.js",
+  "main": "./bootstrap.cjs",
   "extensionKind": ["ui"],
-  "activationEvents": ["onCommand:piChat.listen"],
+  "activationEvents": ["onCommand:piChat.listen", "onCommand:piChat.startTurn", "onCommand:piChat.createSession", "onCommand:piChat.pollTurn", "onCommand:piChat.restoreDraft", "onCommand:piChat.openAILimits", "onCommand:piChat.contextUsage"],
+  "dependencies": { "@earendil-works/pi-coding-agent": "0.84.1", "@earendil-works/pi-ai": "0.84.4" },
   "contributes": {
     "commands": [{ "command": "piChat.listen", "title": "Pi Chat: Listen to Response" }],
     "menus": { "commandPalette": [{ "command": "piChat.listen", "when": "false" }] }

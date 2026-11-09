@@ -9,7 +9,6 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
@@ -38,7 +37,6 @@ export class PiChatConversationView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IMarkdownRendererService private readonly markdown: IMarkdownRendererService,
 		@IPiChatSelectionService private readonly selection: IPiChatSelectionService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, piInstantiationService, openerService, themeService, hoverService);
@@ -51,7 +49,7 @@ export class PiChatConversationView extends ViewPane {
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.conversation = this._register(new PiChatConversationPane(container, this.piInstantiationService, this.markdown));
+		this.conversation = this._register(this.piInstantiationService.createInstance(PiChatConversationPane, container));
 		if (this.selection.selectedSession) {
 			this.updateTitle(this.selection.selectedSession.repoName);
 			this.updateCompositeTabLabel();

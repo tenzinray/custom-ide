@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { PiChatRunTool } from './pi-chat-run-types.js';
+import { PiChatContextUsage } from './pi-chat-context-usage-types.js';
 
 /** Metadata only; conversation messages are intentionally not loaded in the sidebar. */
 export interface PiChatSessionSummary {
@@ -20,11 +22,12 @@ export type PiChatMessage =
 	| { id: string; role: 'user'; content: string }
 	| { id: string; role: 'assistant'; kind: 'text'; content: string }
 	| { id: string; role: 'assistant'; kind: 'thinking'; content: string }
-	| { id: string; role: 'assistant'; kind: 'tool'; toolName: string; input: string; output?: string; state: 'running' | 'completed' | 'failed' }
+	| PiChatRunTool
 	| { id: string; role: 'assistant'; kind: 'notice'; noticeType: 'compaction' | 'branchSummary' | 'warning' | 'cancelled'; content: string };
 
 export interface PiChatSessionHistory {
 	readonly modelName: string;
 	readonly messages: PiChatMessage[];
-	readonly usage: { input: number; output: number; cacheRead: number; contextTokens: number; contextWindow: number };
+	readonly usage: { input: number; output: number; cacheRead: number };
+	contextUsage?: PiChatContextUsage;
 }

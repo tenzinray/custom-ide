@@ -1,0 +1,8 @@
+src/**
+out/**
+**/*.tsbuildinfo
+tsconfig.json
+esbuild.mts
+vscodeRuntime.mts
+dist/**/*.map
+dist/extension.js

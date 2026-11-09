@@ -9,7 +9,8 @@ import { MutableDisposable, toDisposable } from '../../../../base/common/lifecyc
 import { URI } from '../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -28,9 +29,11 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { listGitRepositories } from '../../workspace/browser/gitRepositories.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
+import { PiChatCreatedSession } from '../common/pi-chat-run-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
 import { PiChatSessionEditorInput } from './PiChatSessionEditorInput.js';
 import { PiChatSessionListService } from './PiChatSessionListService.js';
+import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatSelectionService } from './PiChatSelectionService.js';
 import { PiChatRepoPicker } from './sidebar/PiChatRepoPicker.js';
 import { renderPiChatSessionList } from './sidebar/PiChatSessionList.js';
@@ -48,6 +51,7 @@ export class PiChatSessionsView extends ViewPane {
 	private refreshId = 0;
 	private readonly picker = this._register(new MutableDisposable<PiChatRepoPicker>());
 	private readonly sessionListService: PiChatSessionListService;
+	private readonly inputCache: PiChatInputCacheService;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -66,11 +70,21 @@ export class PiChatSessionsView extends ViewPane {
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ICommandService private readonly commands: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, piInstantiationService, openerService, themeService, hoverService);
 		this.sessionListService = piInstantiationService.createInstance(PiChatSessionListService);
+		this.inputCache = piInstantiationService.createInstance(PiChatInputCacheService);
 		this._register(this.onDidChangeBodyVisibility(visible => { if (visible) { void this.refresh(); } }));
-		this._register(selection.onDidSelectSession(() => this.renderSessions()));
+		this._register(selection.onDidSelectSession(session => {
+			if (!session.isDraft && (this.draft?.id === session.id || this.sessions.some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt))) {
+				this.draft = undefined;
+				this.inputCache.setDraftSession(undefined);
+				this.sessionListService.invalidate();
+				void this.refresh();
+			} else { this.renderSessions(); }
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -88,6 +102,7 @@ export class PiChatSessionsView extends ViewPane {
 		const settings = append(bottom, $('button.pi-chat-sidebar-settings', { disabled: 'true', title: 'Settings is not available yet' }));
 		append(settings, $('span.codicon.codicon-settings-gear', { 'aria-hidden': 'true' }));
 		append(settings, $('span', {}, 'Settings'));
+		void this.restoreDraft();
 		void this.refresh();
 	}
 
@@ -95,10 +110,13 @@ export class PiChatSessionsView extends ViewPane {
 		if (!this.shell) { return; }
 		this.picker.value = this.piInstantiationService.createInstance(PiChatRepoPicker, this.shell, this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this.editorService.activeEditor?.resource, (name: string, path: string) => {
 			this.picker.clear();
-			const id = generateUuid();
-			this.draft = { id, repoName: name, repoPath: path, lastMessageAt: new Date().toISOString(), sessionFile: URI.from({ scheme: 'pi-chat', path: `/${id}` }), isDraft: true };
-			this.selection.selectSession(this.draft);
-			void this.viewsService.openView(PiChatConversationView.ID, true);
+			void this.commands.executeCommand<PiChatCreatedSession>('piChat.createSession', path).then(created => {
+				if (!created || this._store.isDisposed) { return; }
+				this.draft = { id: created.id, repoName: name, repoPath: path, lastMessageAt: new Date().toISOString(), sessionFile: URI.file(created.sessionFile), isDraft: true };
+				this.inputCache.setDraftSession(this.draft);
+				this.selection.selectSession(this.draft);
+				void this.viewsService.openView(PiChatConversationView.ID, true);
+			}, error => this.notificationService.error(error));
 		}, () => this.picker.clear());
 		const picker = this.picker.value;
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
@@ -122,6 +140,22 @@ export class PiChatSessionsView extends ViewPane {
 			const byUri = new Map([...repos, ...nearby.filter(repo => repo !== undefined)].map(repo => [repo.folderUri.toString(), repo]));
 			picker?.setRepos([...byUri.values()].sort((a, b) => a.name.localeCompare(b.name)));
 		}, () => { if (this.picker.value === picker) { picker?.setError(); } });
+	}
+
+	private async restoreDraft(): Promise<void> {
+		const saved = this.inputCache.getDraftSession();
+		if (!saved) { return; }
+		if (await this.fileService.exists(saved.sessionFile)) { this.inputCache.setDraftSession(undefined); return; }
+		this.draft = saved;
+		this.renderSessions();
+		try {
+			const created = await this.commands.executeCommand<PiChatCreatedSession>('piChat.restoreDraft', saved.id, saved.repoPath);
+			if (!created || this._store.isDisposed || this.draft?.id !== saved.id) { return; }
+			this.draft = { ...saved, sessionFile: URI.file(created.sessionFile) };
+			this.inputCache.setDraftSession(this.draft);
+			if (this.selection.selectedSession?.id === saved.id) { this.selection.selectSession(this.draft); }
+			this.renderSessions();
+		} catch (error) { this.notificationService.error(error); }
 	}
 
 	private async refresh(): Promise<void> {
