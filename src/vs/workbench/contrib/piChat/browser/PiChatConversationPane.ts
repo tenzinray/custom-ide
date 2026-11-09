@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, DragAndDropObserver, getWindow } from '../../../../base/browser/dom.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, extractEditorsDropData } from '../../../../platform/dnd/browser/dnd.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -76,6 +79,33 @@ export class PiChatConversationPane extends Disposable {
 			this.renderFooter();
 		});
 		this.element = append(parent, $('.pi-chat-conversation'));
+		const showFileDrop = (event: DragEvent) => {
+			const acceptsFiles = !!this.summary && containsDragType(event, DataTransfers.RESOURCES, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES);
+			this.element.classList.toggle('pi-chat-file-drag-over', acceptsFiles);
+			if (acceptsFiles) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (event.dataTransfer) { event.dataTransfer.dropEffect = 'copy'; }
+			}
+		};
+		const clearFileDrop = () => this.element.classList.remove('pi-chat-file-drag-over');
+		this._register(new DragAndDropObserver(this.element, {
+			onDragEnter: showFileDrop,
+			onDragOver: showFileDrop,
+			onDragLeave: clearFileDrop,
+			onDragEnd: clearFileDrop,
+			onDrop: event => {
+				clearFileDrop();
+				const resources = extractEditorsDropData(event).flatMap(editor => editor.resource && [Schemas.file, Schemas.vscodeRemote].includes(editor.resource.scheme) ? [editor.resource] : []);
+				if (this.summary && resources.length) {
+					event.preventDefault();
+					event.stopPropagation();
+					this.insertFiles(resources);
+				}
+			},
+		}));
+		// A cancelled drag can end at its source, outside this conversation.
+		this._register(addDisposableListener(getWindow(this.element).document, 'dragend', clearFileDrop, true));
 		this.header = append(this.element, $('header.pi-chat-conversation-header'));
 		this._register(openAILimits.onDidChange(() => renderPiChatHeader(this.header, this.summary, this.history, openAILimits)));
 		this.limitClock.cancelAndSet(() => {
@@ -92,10 +122,17 @@ export class PiChatConversationPane extends Disposable {
 		this.render();
 	}
 
+	insertFiles(resources: readonly URI[]): boolean {
+		if (!this.summary) { return false; }
+		this.footerControls.value?.insertFiles(resources);
+		return true;
+	}
+
 	async show(summary: PiChatSessionSummary): Promise<void> {
 		if (summary.id === this.summary?.id && (this.sending || (summary === this.summary && this.history))) { return; }
 		if (summary.id !== this.summary?.id) { this.sending = false; this.bodyScroll.reset(); }
 		this.summary = summary;
+		this.element.classList.remove('pi-chat-file-drag-over');
 		void this.openAILimits.load();
 		this.history = undefined;
 		renderPiChatHeader(this.header, this.summary, this.history, this.openAILimits);

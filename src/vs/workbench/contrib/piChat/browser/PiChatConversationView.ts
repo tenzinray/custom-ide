@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -55,6 +56,10 @@ export class PiChatConversationView extends ViewPane {
 			this.updateCompositeTabLabel();
 			void this.conversation.show(this.selection.selectedSession);
 		}
+	}
+
+	insertFiles(resources: readonly URI[]): boolean {
+		return this.conversation?.insertFiles(resources) ?? false;
 	}
 
 	private updateCompositeTabLabel(): void {

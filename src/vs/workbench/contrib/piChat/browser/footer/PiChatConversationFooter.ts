@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode } from '../../../../../base/browser/dom.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,6 +20,7 @@ export interface PiChatFooterControls extends IDisposable {
 	setBusy(busy: boolean): void;
 	recordEvent(): void;
 	restore(text: string): void;
+	insertFiles(resources: readonly URI[]): void;
 }
 
 /** Composer presentation and local draft state; the conversation pane owns sending. */
@@ -62,5 +64,5 @@ export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSu
 	};
 	send.addEventListener('click', () => promptInput.submit());
 	update();
-	return { setBusy, recordEvent: () => statusBar.value?.recordEvent(), restore: text => promptInput.restore(text), dispose: () => { dictation.dispose(); statusBar.dispose(); } };
+	return { setBusy, recordEvent: () => statusBar.value?.recordEvent(), restore: text => promptInput.restore(text), insertFiles: resources => promptInput.insertFiles(resources), dispose: () => { dictation.dispose(); statusBar.dispose(); promptInput.dispose(); } };
 }

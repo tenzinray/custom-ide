@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -38,6 +39,10 @@ export class PiChatSessionEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.conversation = this._register(this.instantiationService.createInstance(PiChatConversationPane, parent));
+	}
+
+	insertFiles(resources: readonly URI[]): boolean {
+		return this.conversation?.insertFiles(resources) ?? false;
 	}
 
 	override layout(_dimension: Dimension): void { }

@@ -42,6 +42,7 @@ import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineCha
 import { AnythingQuickAccessProvider, type IAnythingQuickPickItem } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
+import { isSCMResource } from '../../../scm/browser/util.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/attachments/chatVariableEntries.js';
@@ -95,12 +96,14 @@ abstract class AttachResourceAction extends Action2 {
 	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, ...args) : Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = args.length && args.every(isSCMResource) ? args : isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, ...args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;
 			if (URI.isUri(context)) {
 				uri = context;
+			} else if (isSCMResource(context)) {
+				uri = context.sourceUri;
 			} else if (isSearchTreeFileMatch(context)) {
 				uri = context.resource;
 			} else if (isSearchTreeMatch(context)) {
@@ -140,6 +143,10 @@ class AttachFileToChatAction extends AttachResourceAction {
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 			menu: [{
+				id: MenuId.SCMResourceContext,
+				group: 'z_chat',
+				order: 1,
+			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 1,
@@ -195,17 +202,13 @@ class AttachFileToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const files = this._getResources(accessor, ...args);
-		if (!files.length) {
-			return;
-		}
-		if (widget) {
-			widget.focusInput();
-			for (const file of files) {
-				widget.attachmentModel.addFile(file);
-			}
-		}
+		if (files.length) { await accessor.get(ICommandService).executeCommand('piChat.attachFiles', files); }
+	}
+
+	override async runWithWidget(accessor: ServicesAccessor, _widget: IChatWidget, ...args: unknown[]): Promise<void> {
+		await this.run(accessor, ...args);
 	}
 }
 

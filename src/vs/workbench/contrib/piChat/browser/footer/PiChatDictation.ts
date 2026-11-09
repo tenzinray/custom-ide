@@ -15,7 +15,7 @@ import { PiChatPromptInput } from './PiChatPromptInput.js';
 
 type DictationPhase = 'idle' | 'starting' | 'listening' | 'stopping' | 'error';
 
-/** Coordinates Pi's textarea with the canonical dictation service. Never locks typing or captures audio itself. */
+/** Coordinates Pi's prompt editor with the canonical dictation service. Never locks typing or captures audio itself. */
 export class PiChatDictation extends Disposable {
 	private phase: DictationPhase = 'idle';
 	private generation = 0;
@@ -46,8 +46,8 @@ export class PiChatDictation extends Disposable {
 		const click = () => { if (this.phase === 'starting' || this.phase === 'listening') { void this.stop(); } else if (this.phase !== 'stopping') { void this.begin(); } };
 		const input = () => { if (this.ownsSession) { void this.stop(true); } };
 		button.addEventListener('click', click);
-		prompt.input.addEventListener('input', input);
-		this._register(toDisposable(() => { button.removeEventListener('click', click); prompt.input.removeEventListener('input', input); }));
+		prompt.input.element.addEventListener('input', input);
+		this._register(toDisposable(() => { button.removeEventListener('click', click); prompt.input.element.removeEventListener('input', input); }));
 		this.render();
 	}
 
@@ -117,7 +117,7 @@ export class PiChatDictation extends Disposable {
 		const label = starting ? localize('piChat.dictationStarting', "Starting… Click to cancel") : listening ? localize('piChat.dictationListening', "Listening… Click to stop") : stopping ? localize('piChat.dictationStopping', "Finishing…") : this.phase === 'error' ? this.error : '';
 		this.status.textContent = label;
 		this.status.hidden = !label;
-		this.prompt.input.parentElement!.dataset.dictation = this.phase;
+		this.prompt.input.element.parentElement!.dataset.dictation = this.phase;
 		this.button.classList.toggle('codicon-mic', !starting && !stopping);
 		this.button.classList.toggle('codicon-loading', starting || stopping);
 		this.button.classList.toggle('codicon-modifier-spin', starting || stopping);
