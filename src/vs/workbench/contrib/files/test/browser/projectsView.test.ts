@@ -14,10 +14,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { isFolderToOpen } from '../../../../../platform/window/common/window.js';
+import { isFolderToOpen, isWorkspaceToOpen } from '../../../../../platform/window/common/window.js';
+import { IWorkspaceContextService, Workspace } from '../../../../../platform/workspace/common/workspace.js';
+import { getProjectsDirectory, getSavedWorkspacesDirectory } from '../../../../../platform/workspaces/common/projectDirectories.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { TestPathService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { getGitRepositoriesDirectory } from '../../../workspace/browser/gitRepositories.js';
 import { ProjectsContainer } from '../../browser/views/projects/ProjectsContainer.js';
 
 suite('Explorer Projects', () => {
@@ -27,7 +28,8 @@ suite('Explorer Projects', () => {
 		const home = URI.file('/projects-test');
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
-		const root = getGitRepositoriesDirectory(home);
+		const root = getProjectsDirectory(home);
+		const workspaceDirectory = getSavedWorkspacesDirectory(home);
 		await fileService.createFolder(joinPath(root, 'zebra', '.git'));
 		await fileService.createFolder(joinPath(root, 'alpha'));
 		await fileService.writeFile(joinPath(root, 'alpha', '.git'), VSBuffer.fromString('gitdir: /worktree/alpha'));
@@ -44,12 +46,63 @@ suite('Explorer Projects', () => {
 		const search = parent.querySelector('input')!;
 		const names = () => [...parent.querySelectorAll('.explorer-project-name')].map(row => row.textContent);
 		const filter = (value: string) => { search.value = value; search.dispatchEvent(new mainWindow.Event('input', { bubbles: true })); };
-		return { projects, parent, search, names, filter, calls, root, fileService };
+		return { projects, parent, search, names, filter, calls, root, workspaceDirectory, fileService, instantiation };
 	}
 
 	test('lists direct repositories alphabetically, including Git worktrees', async () => {
 		const { names } = await setup();
 		assert.deepStrictEqual(names(), ['alpha', 'zebra']);
+	});
+
+	test('lists saved workspaces first with distinct icons and ignores unrelated files', async () => {
+		const { projects, parent, names, workspaceDirectory, fileService } = await setup();
+		await fileService.createFolder(workspaceDirectory);
+		for (const name of ['zeta.code-workspace', 'main-ws.code-workspace', 'notes.txt']) {
+			await fileService.writeFile(joinPath(workspaceDirectory, name), VSBuffer.fromString('{"folders":[]}'));
+		}
+		await fileService.createFolder(joinPath(workspaceDirectory, 'directory.code-workspace'));
+		await projects.refresh();
+		assert.deepStrictEqual({ names: names(), icons: [...parent.querySelectorAll('.explorer-project-row > .codicon')].map(icon => icon.className) }, {
+			names: ['main-ws', 'zeta', 'alpha', 'zebra'],
+			icons: ['codicon codicon-root-folder', 'codicon codicon-root-folder', 'codicon codicon-repo', 'codicon codicon-repo'],
+		});
+	});
+
+	test('filters saved workspaces and opens the workspace rather than its file', async () => {
+		const { projects, search, filter, calls, workspaceDirectory, fileService } = await setup();
+		const uri = joinPath(workspaceDirectory, 'main-ws.code-workspace');
+		await fileService.createFolder(workspaceDirectory);
+		await fileService.writeFile(uri, VSBuffer.fromString('{"folders":[]}'));
+		await projects.refresh();
+		filter('main-ws');
+		search.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual(calls.map(([resources, options]) => [resources.map(resource => isWorkspaceToOpen(resource) ? resource.workspaceUri.toString() : ''), options]), [
+			[[uri.toString()], { forceNewWindow: false, forceReuseWindow: true }],
+		]);
+	});
+
+	test('does not reload the current workspace when its row is opened again', async () => {
+		const { projects, search, filter, calls, workspaceDirectory, fileService, instantiation } = await setup();
+		const uri = joinPath(workspaceDirectory, 'main-ws.code-workspace');
+		await fileService.createFolder(workspaceDirectory);
+		await fileService.writeFile(uri, VSBuffer.fromString('{"folders":[]}'));
+		instantiation.stub(IWorkspaceContextService, 'getWorkspace', () => new Workspace('main-ws-test', [], false, uri, () => false));
+		await projects.refresh();
+		filter('main-ws');
+		search.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.strictEqual(calls.length, 0);
+	});
+
+	test('refresh removes deleted workspace files without hiding repositories', async () => {
+		const { projects, names, workspaceDirectory, fileService } = await setup();
+		const uri = joinPath(workspaceDirectory, 'main-ws.code-workspace');
+		await fileService.createFolder(workspaceDirectory);
+		await fileService.writeFile(uri, VSBuffer.fromString('{"folders":[]}'));
+		await projects.refresh();
+		const before = names();
+		await fileService.del(uri);
+		await projects.refresh();
+		assert.deepStrictEqual({ before, after: names() }, { before: ['main-ws', 'alpha', 'zebra'], after: ['alpha', 'zebra'] });
 	});
 
 	test('keeps the search field free of a decorative icon', async () => {

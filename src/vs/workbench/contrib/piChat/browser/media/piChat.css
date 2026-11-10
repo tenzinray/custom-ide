@@ -103,9 +103,8 @@
 .pi-chat-queued-actions { display: flex; justify-content: flex-end; gap: 12px; }
 .pi-chat-queued-actions button { padding: 4px 6px; border: 0; background: transparent; color: var(--vscode-textLink-foreground); font-size: 11px; }
 .pi-chat-queued-actions button:hover { text-decoration: underline; }
-.pi-chat-empty { margin: auto; padding: 30px 12px 50px; text-align: center; }
-.pi-chat-empty h1 { margin: 0 0 7px; color: var(--vscode-foreground); font-size: 23px; font-weight: 600; }
-.pi-chat-empty p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 13px; }
+.pi-chat-empty { width: 100%; max-width: 520px; box-sizing: border-box; margin: 0 auto; padding: 24px 16px 32px; text-align: left; }
+.pi-chat-empty > p { margin: 0 0 16px; color: var(--vscode-descriptionForeground); font-size: 13px; }
 .pi-chat-conversation-footer { flex: 0 0 auto; width: min(100%, 790px); margin: 0 auto; padding: 0 35px 25px; }
 .pi-chat-turn-status { margin-bottom: 10px; }
 .pi-chat-turn-status-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 8px 12px; border: 1px solid var(--vscode-panel-border); border-radius: 10px; background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -153,14 +152,17 @@
 .pi-chat-repo-heading h2 { margin: 0 0 5px; font-size: 17px; }
 .pi-chat-repo-heading p, .pi-chat-repo-list p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; }
 .pi-chat-repo-heading button { border: 0; background: transparent; color: var(--vscode-foreground); }
-.pi-chat-repo-search { width: 100%; padding: 10px 12px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 9px; outline: none; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; font-size: 13px; }
+.pi-chat-repo-body { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.pi-chat-repo-picker > .pi-chat-repo-body { overflow-y: auto; }
+.pi-chat-repo-search { flex-shrink: 0; box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: var(--vscode-cornerRadius-small); outline: none; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; font-size: 13px; }
 .pi-chat-repo-search:focus { border-color: var(--vscode-focusBorder); }
-.pi-chat-repo-suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
+.pi-chat-repo-suggestions { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
 .pi-chat-repo-suggestions:empty { display: none; }
-.pi-chat-repo-suggestion { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 7px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); font-size: 12px !important; }
-.pi-chat-repo-suggestion:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.pi-chat-repo-caption { padding: 4px 10px; color: var(--vscode-descriptionForeground); font-size: 12px; font-weight: 600; }
 .pi-chat-repo-list { min-height: 50px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
-.pi-chat-repo-item { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 10px; border: 0; border-radius: 9px; background: transparent; color: var(--vscode-textLink-foreground); text-align: left; }
+.pi-chat-repo-item { flex-shrink: 0; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 10px; border: 0; border-radius: var(--vscode-cornerRadius-small); background: transparent; color: var(--vscode-textLink-foreground); text-align: left; }
+.pi-chat-repo-item:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.pi-chat-repo-item:disabled { opacity: 0.5; cursor: default; }
 .pi-chat-repo-item:hover { background: var(--vscode-list-hoverBackground); }
 .pi-chat-repo-item span:not(.codicon) { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .pi-chat-repo-item strong { color: var(--vscode-foreground); font-size: 13px; }

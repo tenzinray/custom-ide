@@ -31,6 +31,7 @@ interface ILaunchOptions {
 	readonly full: boolean;
 	readonly skipPreLaunch: boolean;
 	readonly disableWorkspaceTrust: boolean;
+	readonly persistentSharedData: boolean;
 	readonly reuse: boolean;
 	readonly wait: boolean;
 	readonly extraArgs: readonly string[];
@@ -68,6 +69,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 	let full = false;
 	let skipPreLaunch = false;
 	let disableWorkspaceTrust = false;
+	let persistentSharedData = false;
 	let reuse = process.env.CODE_OSS_DEV_REUSE === '1';
 	let wait = false;
 	let extraArgs: string[] = [];
@@ -83,7 +85,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 		const [name, inlineValue] = argument.startsWith('--') && argument.includes('=') ? [argument.slice(0, argument.indexOf('=')), argument.slice(argument.indexOf('=') + 1)] : [argument, undefined];
 		switch (name) {
 			case '--help':
-				writeStdout('Usage: node scripts/code-oss-launcher/launch.ts --repo <root> [--wait] [--skip-prelaunch] [--session-title <title>] [--source-user-data-dir <profile>] [--copy-extensions[=<id,...>]] [--full] [--reuse|--fresh] [--agents] [--disable-workspace-trust] -- <Code OSS arguments>\n');
+				writeStdout('Usage: node scripts/code-oss-launcher/launch.ts --repo <root> [--wait] [--skip-prelaunch] [--session-title <title>] [--source-user-data-dir <profile>] [--copy-extensions[=<id,...>]] [--full] [--reuse|--fresh] [--agents] [--disable-workspace-trust] [--persistent-shared-data] -- <Code OSS arguments>\n');
 				process.exit(0);
 			case '--agents': agents = true; break;
 			case '--session-title': sessionTitle = inlineValue ?? value(index++, name); break;
@@ -106,6 +108,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 			case '--full': full = true; break;
 			case '--skip-prelaunch': skipPreLaunch = true; break;
 			case '--disable-workspace-trust': disableWorkspaceTrust = true; break;
+			case '--persistent-shared-data': persistentSharedData = true; break;
 			case '--reuse': reuse = true; break;
 			case '--fresh': reuse = false; break;
 			case '--wait': wait = true; break;
@@ -125,7 +128,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 			throw new UsageError(`The launcher owns ${argument.split('=')[0]}; it cannot be overridden.`);
 		}
 	}
-	return { agents, sessionTitle, sourceUserDataDir, repo, extensions, full, skipPreLaunch, disableWorkspaceTrust, reuse, wait, extraArgs };
+	return { agents, sessionTitle, sourceUserDataDir, repo, extensions, full, skipPreLaunch, disableWorkspaceTrust, persistentSharedData, reuse, wait, extraArgs };
 }
 
 async function main(): Promise<number> {
@@ -156,7 +159,7 @@ async function main(): Promise<number> {
 	try {
 		const userDataDir = path.join(runDir, 'user-data');
 		const extensionsDir = path.join(userDataDir, 'extensions');
-		const sharedDataDir = path.join(runDir, 'shared-data');
+		const sharedDataDir = options.persistentSharedData ? getSourceSharedDataDir(repo) : path.join(runDir, 'shared-data');
 		const logFile = path.join(runDir, 'code.log');
 		await fs.writeFile(logFile, '');
 		log(`${reused ? 'reusing' : 'created'} run directory ${runDir}`);
@@ -277,7 +280,7 @@ async function createRunDir(repo: string, sourceUserDataDir: string, options: IL
 		// One reused run directory per source profile and copy selection, as their contents differ
 		const extensionsKey = !options.extensions ? 'none' : options.extensions.kind === 'all' ? 'all' : options.extensions.ids.map(id => id.toLowerCase()).sort().join(',');
 		const profileKey = process.platform === 'linux' ? sourceUserDataDir : sourceUserDataDir.toLowerCase();
-		const key = createHash('sha256').update(JSON.stringify([profileKey, options.full, extensionsKey])).digest('hex').slice(0, 8);
+		const key = createHash('sha256').update(JSON.stringify([profileKey, options.full, extensionsKey, options.persistentSharedData])).digest('hex').slice(0, 8);
 		const runDir = await claimReuseRunDir(root, key);
 		if (runDir) {
 			await writeState(runDir, { kind: 'reuse', launcherPid: process.pid, lastUsedAt: Date.now() });
@@ -310,8 +313,11 @@ async function prepareProfile(repo: string, sourceUserDataDir: string, sourcePro
 	// and not in the profile - see useSharedStorage in src/vs/platform/secrets/common/secrets.ts.
 	// Without this copy the launched instance always prompts for sign-in.
 	const sourceSharedDataDir = getSourceSharedDataDir(repo);
-	const copiesSharedData = process.platform === 'win32' && await isDirectory(sourceSharedDataDir);
-	if (process.platform === 'win32' && !copiesSharedData) {
+	const copiesSharedData = !options.persistentSharedData && process.platform === 'win32' && await isDirectory(sourceSharedDataDir);
+	if (options.persistentSharedData) {
+		log(`persistent application-shared storage (including workspace trust): ${sharedDataDir}`);
+	}
+	if (!options.persistentSharedData && process.platform === 'win32' && !copiesSharedData) {
 		log(`no shared-data-dir at ${sourceSharedDataDir}; nothing to seed`);
 	}
 

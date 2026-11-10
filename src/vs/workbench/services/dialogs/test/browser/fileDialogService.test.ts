@@ -5,12 +5,17 @@
 
 import assert from 'assert';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { HTMLFileSystemProvider } from '../../../../../platform/files/browser/htmlFileSystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IWorkspaceContextService, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
+import { getSavedWorkspacesDirectory } from '../../../../../platform/workspaces/common/projectDirectories.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { FileDialogService } from '../../browser/fileDialogService.js';
 
 suite('Browser FileDialogService', () => {
@@ -59,6 +64,34 @@ suite('Browser FileDialogService', () => {
 				override readonly kind = 'directory';
 				override readonly name = 'folder';
 			}(),
+		});
+	});
+
+	function workspaceDialogFixture(configuration: URI) {
+		const home = URI.file('/workspace-dialog-test');
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const instantiation = workbenchInstantiationService({ fileService: () => fileService, pathService: () => new TestPathService(home) }, disposables);
+		instantiation.stub(IWorkspaceContextService, 'getWorkbenchState', () => WorkbenchState.WORKSPACE);
+		instantiation.stub(IWorkspaceContextService, 'getWorkspace', () => new Workspace('workspace-dialog-test', [], false, configuration, () => false));
+		return { dialog: instantiation.createInstance(TestFileDialogService), fileService, home };
+	}
+
+	if (!isWeb) {
+		test('defaults local workspace saves to the shared workspace directory, not the current repo', async () => {
+			const { dialog, fileService, home } = workspaceDialogFixture(URI.file('/repo/nested/existing.code-workspace'));
+			const directory = await dialog.defaultWorkspacePath(Schemas.file);
+			assert.deepStrictEqual({ uri: directory.toString(), exists: await fileService.exists(directory) }, {
+				uri: getSavedWorkspacesDirectory(home).toString(), exists: true,
+			});
+		});
+	}
+
+	test('preserves the remote workspace dialog location', async () => {
+		const { dialog, fileService, home } = workspaceDialogFixture(URI.from({ scheme: Schemas.vscodeRemote, authority: 'test', path: '/repo/existing.code-workspace' }));
+		const directory = await dialog.defaultWorkspacePath(Schemas.vscodeRemote);
+		assert.deepStrictEqual({ uri: directory.toString(), localDirectoryCreated: await fileService.exists(getSavedWorkspacesDirectory(home)) }, {
+			uri: 'vscode-remote://test/repo', localDirectoryCreated: false,
 		});
 	});
 

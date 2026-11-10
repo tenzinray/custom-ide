@@ -33,6 +33,8 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { EditorOpenSource } from '../../../../platform/editor/common/editor.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { getSavedWorkspacesDirectory } from '../../../../platform/workspaces/common/projectDirectories.js';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -146,6 +148,16 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+		if (!isWeb && schemeFilter === Schemas.file) {
+			const directory = getSavedWorkspacesDirectory(this.pathService.userHome({ preferLocal: true }));
+			try {
+				await this.fileService.createFolder(directory);
+				return directory;
+			} catch (error) {
+				this.logService.warn('Unable to use the saved workspaces directory; falling back to the usual dialog location.', error);
+			}
+		}
+
 		let defaultWorkspacePath: URI | undefined;
 
 		// Check for current workspace config file first...

@@ -14,6 +14,7 @@ const bottomDistanceThreshold = 150;
 export class PiChatBodyScroll extends Disposable {
 	private readonly button: HTMLButtonElement;
 	private following = true;
+	private enabled = true;
 	private renderId = 0;
 
 	constructor(shell: HTMLElement, private readonly body: HTMLElement) {
@@ -38,6 +39,13 @@ export class PiChatBodyScroll extends Disposable {
 
 	get shouldFollow(): boolean { return this.following; }
 
+	setEnabled(enabled: boolean): void {
+		if (this.enabled === enabled) { return; }
+		this.enabled = enabled;
+		this.reset();
+		if (!enabled) { this.body.scrollTop = 0; }
+	}
+
 	reset(): void {
 		this.renderId++;
 		this.following = true;
@@ -45,6 +53,7 @@ export class PiChatBodyScroll extends Disposable {
 	}
 
 	afterRender(follow: boolean, previousTop: number): void {
+		if (!this.enabled) { return; }
 		const renderId = ++this.renderId;
 		this.body.scrollTop = follow ? this.body.scrollHeight : previousTop;
 		this.updateButton();
@@ -62,6 +71,6 @@ export class PiChatBodyScroll extends Disposable {
 	}
 
 	private updateButton(): void {
-		this.button.hidden = this.body.clientHeight === 0 || this.distanceFromBottom() <= bottomDistanceThreshold;
+		this.button.hidden = !this.enabled || this.body.clientHeight === 0 || this.distanceFromBottom() <= bottomDistanceThreshold;
 	}
 }

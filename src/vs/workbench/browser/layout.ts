@@ -2936,6 +2936,11 @@ interface ILayoutStateLoadConfiguration {
 	readonly resetLayout: boolean;
 }
 
+/** Normal secondary sidebar width, including the small-window initialization path. */
+function getDefaultAuxiliaryBarSize(windowWidth: number): number {
+	return Math.round(Math.min(300, windowWidth / 4) * 1.35);
+}
+
 class LayoutStateModel extends Disposable {
 
 	static readonly STORAGE_PREFIX = 'workbench.';
@@ -3025,7 +3030,7 @@ class LayoutStateModel extends Disposable {
 		const mainContainerDimension = configuration.mainContainerDimension;
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY || auxiliaryBarForceMaximized === true;
-		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : getDefaultAuxiliaryBarSize(mainContainerDimension.width);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
 			if (isWeb && !this.environmentService.remoteAuthority) {
 				return true; // not required in web if unsupported
@@ -3120,7 +3125,7 @@ class LayoutStateModel extends Disposable {
 		// Restrict auxiliary bar size in case of small window dimensions
 		if (this.isNew[StorageScope.WORKSPACE] && configuration.mainContainerDimension.width <= DEFAULT_WORKSPACE_WINDOW_DIMENSIONS.width) {
 			this.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
-			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
+			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, getDefaultAuxiliaryBarSize(configuration.mainContainerDimension.width));
 		}
 	}
 

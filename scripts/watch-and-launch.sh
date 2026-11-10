@@ -94,5 +94,6 @@ for ((attempt = 0; attempt < 300; attempt++)); do
 	sleep 1
 done
 
-# The existing launcher owns the isolated profile, Electron startup and window readiness.
-node "$ROOT/scripts/code-oss-launcher/launch.ts" --repo "$ROOT" --skip-prelaunch -- "$@"
+# Keep application-shared preferences (including trusted folders) across normal dev launches.
+# The launcher still owns the isolated profile, Electron startup and window readiness.
+node "$ROOT/scripts/code-oss-launcher/launch.ts" --repo "$ROOT" --skip-prelaunch --persistent-shared-data -- "$@"

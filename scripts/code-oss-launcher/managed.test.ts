@@ -46,11 +46,11 @@ test('managed launcher readiness, lifetime, isolation, forwarding and exact-run 
 	delete env.CODE_OSS_DEV_STDERR_FILE;
 	const launches: ILaunch[] = [];
 
-	async function start(name: string, extra: string[] = []): Promise<ILaunch> {
+	async function start(name: string, extra: string[] = [], launcherArgs: string[] = []): Promise<ILaunch> {
 		const startedFile = path.join(root, `${name}.started.json`);
 		const readyFile = path.join(root, `${name}.ready`);
 		const exitFile = path.join(root, `${name}.exit`);
-		const child = spawn(process.execPath, [launcher, '--repo', repo, '--wait', '--skip-prelaunch', '--session-title', 'Managed $ test', '--disable-workspace-trust', '--source-user-data-dir', source, '--',
+		const child = spawn(process.execPath, [launcher, '--repo', repo, '--wait', '--skip-prelaunch', '--session-title', 'Managed $ test', '--disable-workspace-trust', '--source-user-data-dir', source, ...launcherArgs, '--',
 			`--fixture-started=${startedFile}`, `--fixture-ready=${readyFile}`, `--fixture-exit=${exitFile}`, ...extra, '--extensionDevelopmentPath=extension & 100% with spaces', 'workspace with spaces'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 		let stdout = '';
 		let stderr = '';
@@ -167,6 +167,27 @@ test('managed launcher readiness, lifetime, isolation, forwarding and exact-run 
 			assert.equal(existsSync(secondRecord.userDataDir), true);
 			await stop(secondRecord.runDir);
 			await second.exited;
+		});
+
+		await t.test('opt-in application-shared state survives fresh profiles and exact-run cleanup', async () => {
+			const first = await start('persistent-first', [], ['--persistent-shared-data']);
+			await fs.writeFile(first.readyFile, '');
+			const firstRecord = await first.ready;
+			await fs.writeFile(path.join(firstRecord.sharedDataDir, 'retained-state'), 'retained application state');
+			await stop(firstRecord.runDir);
+			await first.exited;
+			const second = await start('persistent-second', [], ['--persistent-shared-data']);
+			await fs.writeFile(second.readyFile, '');
+			const secondRecord = await second.ready;
+			assert.deepStrictEqual({
+				firstShared: firstRecord.sharedDataDir,
+				secondShared: secondRecord.sharedDataDir,
+				freshProfile: secondRecord.userDataDir !== firstRecord.userDataDir,
+				state: await fs.readFile(path.join(secondRecord.sharedDataDir, 'retained-state'), 'utf8'),
+			}, { firstShared: shared, secondShared: shared, freshProfile: true, state: 'retained application state' });
+			await stop(secondRecord.runDir);
+			await second.exited;
+			assert.equal(await fs.readFile(path.join(shared, 'retained-state'), 'utf8'), 'retained application state');
 		});
 
 		await t.test('early application exit fails without emitting readiness JSON', async () => {

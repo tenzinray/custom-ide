@@ -31,6 +31,7 @@ import { PiChatBodyScroll } from './body/PiChatBodyScroll.js';
 import { PiChatMessageCopy } from './body/PiChatMessageCopy.js';
 import { PiChatSessionLoadService } from './PiChatSessionLoadService.js';
 import { PiChatModelService } from './PiChatModelService.js';
+import { PiChatRepoPickerContainer } from './PiChatRepoPickerContainer.js';
 import { PiChatFooterControls, renderPiChatFooter } from './footer/PiChatConversationFooter.js';
 import { renderPiChatHeader } from './header/PiChatConversationHeader.js';
 import './media/piChat.css';
@@ -43,6 +44,7 @@ export class PiChatConversationPane extends Disposable {
 	private readonly bodyScroll: PiChatBodyScroll;
 	private readonly footer: HTMLElement;
 	private readonly renderedMessages = this._register(new MutableDisposable<DisposableStore>());
+	private readonly emptyPicker = this._register(new MutableDisposable<PiChatRepoPickerContainer>());
 	private readonly playback = this._register(new MutableDisposable<PiChatListenPlayback>());
 	private readonly loader: PiChatSessionLoadService;
 	private readonly commands: ICommandService;
@@ -62,7 +64,7 @@ export class PiChatConversationPane extends Disposable {
 	private messageCount = 120;
 	private renderPending = false;
 
-	constructor(parent: HTMLElement, @IInstantiationService instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService) {
+	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService) {
 		super();
 		this.loader = instantiationService.createInstance(PiChatSessionLoadService);
 		this.commands = instantiationService.invokeFunction(accessor => accessor.get(ICommandService));
@@ -208,15 +210,19 @@ export class PiChatConversationPane extends Disposable {
 		// Streaming replaces message nodes; keep an active drag-selection intact until it is cleared.
 		if (this.hasSelectedText()) { this.renderPending = true; return; }
 		this.renderPending = false;
+		this.bodyScroll.setEnabled(!!this.summary);
 		const follow = scrollToLatest && this.bodyScroll.shouldFollow;
 		const previousTop = this.body.scrollTop;
 		this.playback.clear();
 		this.renderedMessages.clear();
+		if (this.summary) { this.emptyPicker.clear(); }
 		if (!this.summary) {
-			clearNode(this.body);
-			const empty = append(this.body, $('.pi-chat-empty'));
-			append(empty, $('h1', {}, 'Choose a conversation.'));
-			append(empty, $('p', {}, 'Your recent Pi sessions are on the left.'));
+			if (!this.emptyPicker.value) {
+				clearNode(this.body);
+				const empty = append(this.body, $('.pi-chat-empty'));
+				append(empty, $('p', {}, localize('piChat.emptyChooseRepo', "Choose a repo.")));
+				this.emptyPicker.value = this.instantiationService.createInstance(PiChatRepoPickerContainer, empty, undefined);
+			}
 		} else if (this.history) {
 			this.renderedMessages.value = renderPiChatMessages(this.body, this.history, this.messageCount, () => {
 				const previousHeight = this.body.scrollHeight;

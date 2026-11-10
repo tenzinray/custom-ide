@@ -3,84 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { GitRepository } from '../../../workspace/browser/gitRepositories.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { PiChatRepoPickerContainer } from '../PiChatRepoPickerContainer.js';
 
-/** Pi UI-style repository picker for a read-only new-chat draft. */
+/** Popup shell only; shares new-chat data flow and rows with the inline empty state. */
 export class PiChatRepoPicker extends Disposable {
 	private readonly overlay: HTMLElement;
-	private readonly search: HTMLInputElement;
-	private readonly list: HTMLElement;
-	private readonly suggestions: HTMLElement;
-	private repos: GitRepository[] = [];
 
-	constructor(anchor: HTMLElement, private readonly workspaceFolders: readonly URI[], private readonly editorResource: URI | undefined, private readonly onSelect: (name: string, path: string) => void, private readonly onClose: () => void) {
+	constructor(anchor: HTMLElement, onClose: () => void, @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		// Attach inside the workbench so theme tokens and its font inherit into the dialog.
 		this.overlay = append(anchor.closest('.monaco-workbench') ?? anchor, $('.pi-chat-repo-overlay'));
-		this.overlay.addEventListener('click', event => { if (event.target === this.overlay) { this.onClose(); } });
-		const dialog = append(this.overlay, $('.pi-chat-repo-picker', { role: 'dialog', 'aria-label': 'New chat' }));
+		this._register(addDisposableListener(this.overlay, 'click', event => { if (event.target === this.overlay) { onClose(); } }));
+		const dialog = append(this.overlay, $('.pi-chat-repo-picker', { role: 'dialog', 'aria-modal': 'true', 'aria-label': localize('piChat.newChat', "New chat") }));
 		const heading = append(dialog, $('.pi-chat-repo-heading'));
 		const info = append(heading, $('div'));
-		append(info, $('h2', {}, 'New chat'));
-		append(info, $('p', {}, 'Choose a repository to start a Pi conversation.'));
-		const close = append(heading, $('button.codicon.codicon-close', { 'aria-label': 'Close', title: 'Close' }));
-		close.addEventListener('click', this.onClose);
-		this.search = append(dialog, $('input.pi-chat-repo-search', { placeholder: 'Search repositories...', 'aria-label': 'Search repositories' })) as HTMLInputElement;
-		this.suggestions = append(dialog, $('.pi-chat-repo-suggestions'));
-		this.list = append(dialog, $('.pi-chat-repo-list'));
-		this.list.textContent = 'Finding repositories...';
-		this.overlay.addEventListener('keydown', event => { if (event.key === 'Escape') { this.onClose(); } });
-		this.search.addEventListener('input', () => this.renderRepos());
-		this.search.focus();
+		append(info, $('h2', {}, localize('piChat.newChatHeading', "New chat")));
+		append(info, $('p', {}, localize('piChat.chooseRepo', "Choose a repo.")));
+		const close = append(heading, $('button.codicon.codicon-close', { type: 'button', 'aria-label': localize('piChat.closeRepoPicker', "Close") }));
+		this._register(addDisposableListener(close, 'click', onClose));
+		this._register(addDisposableListener(this.overlay, 'keydown', event => { if (event.key === 'Escape') { onClose(); } }));
+		this._register(instantiationService.createInstance(PiChatRepoPickerContainer, dialog, onClose)).focus();
 	}
 
-	setRepos(repos: GitRepository[]): void {
-		this.repos = repos;
-		this.renderSuggestions();
-		this.renderRepos();
-	}
-
-	setError(): void {
-		this.list.textContent = 'Could not find repositories.';
-	}
-
-	private renderSuggestions(): void {
-		this.suggestions.replaceChildren();
-		const shown = new Set<string>();
-		const add = (resource: URI, label: string) => {
-			const repo = this.repos.filter(repo => isEqualOrParent(resource, repo.folderUri)).sort((a, b) => b.folderUri.path.length - a.folderUri.path.length)[0];
-			if (!repo || shown.has(repo.folderUri.toString())) { return; }
-			shown.add(repo.folderUri.toString());
-			const button = append(this.suggestions, $('button.pi-chat-repo-suggestion'));
-			append(button, $('.codicon.codicon-repo', { 'aria-hidden': 'true' }));
-			append(button, $('span', {}, `${label} · ${repo.name}`));
-			button.title = repo.folderUri.fsPath;
-			button.addEventListener('click', () => this.onSelect(repo.name, repo.folderUri.fsPath));
-		};
-		for (const folder of this.workspaceFolders) { add(folder, 'Current workspace'); }
-		if (this.editorResource) { add(this.editorResource, 'Active editor'); }
-	}
-
-	private renderRepos(): void {
-		this.list.replaceChildren();
-		const matching = this.repos.filter(repo => repo.name.toLowerCase().includes(this.search.value.toLowerCase()));
-		if (!matching.length) { append(this.list, $('p', {}, 'No repositories found.')); }
-		for (const repo of matching) {
-			const button = append(this.list, $('button.pi-chat-repo-item'));
-			append(button, $('.codicon.codicon-repo', { 'aria-hidden': 'true' }));
-			const text = append(button, $('span'));
-			append(text, $('strong', {}, repo.name));
-			append(text, $('small', {}, repo.folderUri.fsPath));
-			button.addEventListener('click', () => this.onSelect(repo.name, repo.folderUri.fsPath));
-		}
-	}
-
-	override dispose(): void {
-		this.overlay.remove();
-		super.dispose();
-	}
+	override dispose(): void { this.overlay.remove(); super.dispose(); }
 }

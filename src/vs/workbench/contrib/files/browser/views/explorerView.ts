@@ -866,15 +866,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
-				if (!viewState || previousInput instanceof ExplorerItem) {
-					// There is no view state for this workspace (we transitioned from a folder workspace?), expand up to five roots.
-					// If there are many roots in a workspace, expanding them all would can cause performance issues #176226
-					for (let i = 0; i < Math.min(input.length, 5); i++) {
-						try {
-							await this.tree.expand(input[i]);
-						} catch (e) { }
-					}
-				}
+				// Fresh multi-root workspaces start collapsed instead of eagerly scanning every repo.
+				// Saved expansion state and explicitly added roots are still respected.
 				// Reloaded or transitioned from an empty workspace, but only have a single folder in the workspace.
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
 					await this.tree.expand(input[0]).catch(() => { });

@@ -43,6 +43,7 @@ import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent,
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
+import { getDefaultWorkspacePath } from '../../workspaces/common/projectDirectories.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
@@ -877,9 +878,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			isCommandLineOrAPICall = true;
 		}
 
-		// Extract paths: from previous session
+		// Fresh local launches prefer the saved main workspace. Explicit paths/empty windows
+		// above, remote launches, extension development, and recovery restarts stay unchanged.
 		else {
-			pathsToOpen = await this.doGetPathsFromLastSession();
+			const defaultWorkspace = openConfig.initialStartup && !this.lifecycleMainService.wasRestarted && !openConfig.remoteAuthority && !openConfig.cli.remote && !openConfig.cli.extensionDevelopmentPath
+				? await this.workspacesManagementMainService.resolveLocalWorkspace(getDefaultWorkspacePath(this.environmentMainService.userHome))
+				: undefined;
+			pathsToOpen = defaultWorkspace
+				? [{ workspace: { id: defaultWorkspace.id, configPath: defaultWorkspace.configPath }, remoteAuthority: defaultWorkspace.remoteAuthority }]
+				: await this.doGetPathsFromLastSession();
 			if (pathsToOpen.length === 0) {
 				pathsToOpen.push(EMPTY_WINDOW); // add an empty window if we did not have windows to restore
 			}
