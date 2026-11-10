@@ -10,6 +10,14 @@ node scripts\code-oss-launcher\launch.ts --repo . --wait --skip-prelaunch --sess
 
 On macOS/Linux, use `scripts/code-oss-launcher/launch.ts` and appropriate paths. When spawning from another program, pass an argument array, including the literal `--`, with no shell. Everything after `--` is forwarded verbatim. The launcher reserves the profile, extensions, shared-data and debugger arguments so callers cannot accidentally override run isolation.
 
+## Normal app use
+
+`scripts/watch-and-launch.sh` uses `--persistent-profile`. Its permanent data lives in `~/.vscode-oss-dev-profile/` (`user-data/`, installed extensions inside that profile, and `shared-data/`). Settings, pinned chats, hidden activity-bar buttons, workspace layout, and sign-ins are not recopied or reset on later launches. Sign into GitHub before or after setup; either works. If the permanent app is already running, use its existing window rather than starting a second copy.
+
+A queued `~/.vscode-oss-dev-profile.migration.json` seeds this profile once from the current window after the source app has fully quit. Migration refuses a live source, protects a temporary source from launcher garbage collection, preserves workspace state/history/unsaved backups/extensions/shared trust, and publishes the new profile only after the copy succeeds. No running window is restarted. Both the pending plan and the permanent profile live outside the checkout, so cleaning repo logs or switching checkouts cannot reset them. Later launches ignore the seed and never synchronize over the permanent profile. `CODE_OSS_DEV_PERSISTENT_PROFILE_DIR` and `CODE_OSS_DEV_PROFILE_MIGRATION_FILE` can override these locations for tests or explicit alternate setups. Garbage collection and the cleanup command (even `--remove`) refuse permanent profiles and queued migration sources.
+
+The launcher itself still defaults to isolated throwaway profiles for agent/UI testing.
+
 ## Launch options
 
 | Option | Behavior |
@@ -19,7 +27,8 @@ On macOS/Linux, use `scripts/code-oss-launcher/launch.ts` and appropriate paths.
 | `--skip-prelaunch` | Skip `build/lib/preLaunch.ts`; Electron, compiled output and built-ins must already exist. Without this flag, normal source prelaunch runs first. |
 | `--session-title TITLE` | Set the isolated window title; with `--agents`, set the Agents command-center title instead. |
 | `--disable-workspace-trust` | Forward this opt-in development setting to Code OSS. |
-| `--persistent-shared-data` | Use the normal application-shared storage instead of a throwaway copy. Keeps trusted-folder choices across profile resets; does not disable trust or pre-trust any folder. Enabled by `scripts/watch-and-launch.sh`, not by isolated test launches. |
+| `--persistent-shared-data` | Keep only application-shared storage while the user profile remains isolated. Does not disable trust or pre-trust any folder. |
+| `--persistent-profile` | Keep the entire normal-use profile and its own shared storage permanently. Seed once from the queued migration or source profile; never reset later settings, extensions or login state. Used by `scripts/watch-and-launch.sh`. Cannot combine with `--full` or `--copy-extensions`. |
 | `--source-user-data-dir DIR` | Seed from this Code OSS profile; defaults to `CODE_OSS_DEV_AUTHED_USER_DATA_DIR` or `~/.vscode-oss-dev`. A missing profile starts empty. |
 | `--copy-extensions` | Copy all source-profile extensions. Default: empty isolated extensions directory. `--clone-extensions` is an alias. |
 | `--copy-extensions=publisher.one,publisher.two` | Copy selected extensions and filter the extension manifest. Unknown IDs are usage errors. |

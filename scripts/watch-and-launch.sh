@@ -94,6 +94,6 @@ for ((attempt = 0; attempt < 300; attempt++)); do
 	sleep 1
 done
 
-# Keep application-shared preferences (including trusted folders) across normal dev launches.
-# The launcher still owns the isolated profile, Electron startup and window readiness.
-node "$ROOT/scripts/code-oss-launcher/launch.ts" --repo "$ROOT" --skip-prelaunch --persistent-shared-data -- "$@"
+# Normal use keeps the whole profile: settings, sign-ins, extensions, pins, layout and trust.
+# Agent/test launches still use the managed launcher's isolated default.
+node "$ROOT/scripts/code-oss-launcher/launch.ts" --repo "$ROOT" --skip-prelaunch --persistent-profile -- "$@"

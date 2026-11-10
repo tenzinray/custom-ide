@@ -72,6 +72,7 @@ export class PiChatSessionsView extends ViewPane {
 		this.inputCache = piInstantiationService.createInstance(PiChatInputCacheService);
 		this._register(this.onDidChangeBodyVisibility(visible => { if (visible) { void this.refresh(); } }));
 		this._register(selection.onDidSelectSession(session => {
+			if (!session) { this.renderSessions(); return; }
 			if (session.isDraft) { this.draft = session; }
 			if (!session.isDraft && (this.draft?.id === session.id || this.sessions.some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt))) {
 				this.draft = undefined;

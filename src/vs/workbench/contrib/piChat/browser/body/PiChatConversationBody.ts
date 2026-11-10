@@ -6,6 +6,7 @@
 import { $, append, clearNode, getWindow } from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { PiChatMessage, PiChatSessionHistory } from '../../common/pi-chat-types.js';
 import { PiChatQueuedPrompt } from '../../common/pi-chat-run-types.js';
@@ -25,8 +26,7 @@ export function renderPiChatMessages(container: HTMLElement, history: PiChatSess
 	}
 	if (!messages.length) {
 		const empty = append(list, $('.pi-chat-empty'));
-		append(empty, $('h1', {}, 'A fresh conversation.'));
-		append(empty, $('p', {}, 'Choose a model below. Ask Pi anything to get started.'));
+		append(empty, $('h1', {}, localize('piChat.emptyConversation', "New Chat")));
 		renderPiChatQueuedPrompts(list, queued, onCancel, onSendNow);
 		return disposables;
 	}

@@ -42,9 +42,10 @@ export class PiChatConversationView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, piInstantiationService, openerService, themeService, hoverService);
 		this._register(selection.onDidSelectSession(session => {
-			this.updateTitle(session.repoName);
+			this.updateTitle(this.singleViewPaneContainerTitle);
 			this.updateCompositeTabLabel();
-			void this.conversation?.show(session);
+			if (session) { void this.conversation?.show(session); }
+			else { this.conversation?.clearDraft(); }
 		}));
 	}
 

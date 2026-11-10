@@ -26,6 +26,7 @@ import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
 import { IPiChatSelectionService } from './PiChatSelectionService.js';
 import { renderPiChatMessages } from './body/PiChatConversationBody.js';
+import { renderPiChatNewChat } from './body/PiChatNewChatBody.js';
 import { PiChatListenPlayback } from './body/PiChatListenPlayback.js';
 import { PiChatBodyScroll } from './body/PiChatBodyScroll.js';
 import { PiChatMessageCopy } from './body/PiChatMessageCopy.js';
@@ -72,7 +73,7 @@ export class PiChatConversationPane extends Disposable {
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
 		this.copy = new PiChatMessageCopy(text => clipboardService.writeText(text));
 		this._register(this.selection.onDidSelectSession(session => {
-			if (session.id === this.summary?.id && !this.sending && !session.isDraft) { void this.show(session); }
+			if (session && session.id === this.summary?.id && !this.sending && !session.isDraft) { void this.show(session); }
 		}));
 		void instantiationService.createInstance(PiChatModelService).loadModels().then(({ defaultModel, models }) => {
 			if (this._store.isDisposed) { return; }
@@ -128,6 +129,18 @@ export class PiChatConversationPane extends Disposable {
 		if (!this.summary) { return false; }
 		this.footerControls.value?.insertFiles(resources);
 		return true;
+	}
+
+	clearDraft(): void {
+		if (!this.summary?.isDraft || this.sending) { return; }
+		++this.requestId;
+		this.summary = undefined;
+		this.history = undefined;
+		this.queued = [];
+		this.bodyScroll.reset();
+		renderPiChatHeader(this.header, undefined, undefined, this.openAILimits);
+		this.renderFooter();
+		this.render();
 	}
 
 	async show(summary: PiChatSessionSummary): Promise<void> {
@@ -210,7 +223,7 @@ export class PiChatConversationPane extends Disposable {
 		// Streaming replaces message nodes; keep an active drag-selection intact until it is cleared.
 		if (this.hasSelectedText()) { this.renderPending = true; return; }
 		this.renderPending = false;
-		this.bodyScroll.setEnabled(!!this.summary);
+		this.bodyScroll.setEnabled(!!this.summary && (!this.summary.isDraft || !!this.history?.messages.length));
 		const follow = scrollToLatest && this.bodyScroll.shouldFollow;
 		const previousTop = this.body.scrollTop;
 		this.playback.clear();
@@ -223,6 +236,12 @@ export class PiChatConversationPane extends Disposable {
 				append(empty, $('p', {}, localize('piChat.emptyChooseRepo', "Choose a repo.")));
 				this.emptyPicker.value = this.instantiationService.createInstance(PiChatRepoPickerContainer, empty, undefined);
 			}
+		} else if (this.summary.isDraft && !this.history?.messages.length) {
+			this.renderedMessages.value = renderPiChatNewChat(this.body, this.summary, () => {
+				if (this.sending) { return; }
+				this.selection.clearSelection();
+				this.clearDraft();
+			});
 		} else if (this.history) {
 			this.renderedMessages.value = renderPiChatMessages(this.body, this.history, this.messageCount, () => {
 				const previousHeight = this.body.scrollHeight;

@@ -105,6 +105,12 @@
 .pi-chat-queued-actions button:hover { text-decoration: underline; }
 .pi-chat-empty { width: 100%; max-width: 520px; box-sizing: border-box; margin: 0 auto; padding: 24px 16px 32px; text-align: left; }
 .pi-chat-empty > p { margin: 0 0 16px; color: var(--vscode-descriptionForeground); font-size: 13px; }
+.pi-chat-new-chat-body h1 { margin: 0 0 16px; font-size: 23px; font-weight: 600; }
+.pi-chat-selected-project { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-sideBarTitle-background, var(--vscode-sideBar-background)); }
+.pi-chat-selected-project > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pi-chat-selected-project small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); }
+.pi-chat-switch-project { margin-top: 12px; padding: 8px 12px; border: 0; border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+.pi-chat-switch-project:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .pi-chat-conversation-footer { flex: 0 0 auto; width: min(100%, 790px); margin: 0 auto; padding: 0 35px 12px; }
 .pi-chat-turn-status { margin-bottom: 10px; }
 .pi-chat-turn-status-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 8px 12px; border: 1px solid var(--vscode-panel-border); border-radius: 10px; background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -153,7 +159,9 @@
 .pi-chat-repo-heading p, .pi-chat-repo-list p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; }
 .pi-chat-repo-heading button { border: 0; background: transparent; color: var(--vscode-foreground); }
 .pi-chat-repo-body { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-.pi-chat-repo-picker > .pi-chat-repo-body { overflow-y: auto; }
+.pi-chat-repo-picker > .pi-chat-repo-body { overflow: hidden; }
+.pi-chat-repo-results { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.pi-chat-repo-picker .pi-chat-repo-results { overflow-y: auto; }
 .pi-chat-repo-section { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
 .pi-chat-repo-workspace { display: flex; flex-direction: column; gap: 4px; padding: 4px; border-radius: var(--vscode-cornerRadius-medium); background: var(--vscode-sideBarTitle-background, var(--vscode-sideBar-background)); }
 .pi-chat-repo-search { flex-shrink: 0; box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: var(--vscode-cornerRadius-small); outline: none; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; font-size: 13px; }
@@ -163,7 +171,7 @@
 .pi-chat-repo-suggestions { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
 .pi-chat-repo-suggestions:empty { display: none; }
 .pi-chat-repo-caption { padding: 4px 10px; color: var(--vscode-descriptionForeground); font-size: 12px; font-weight: 600; }
-.pi-chat-repo-list { min-height: 50px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.pi-chat-repo-list { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
 .pi-chat-repo-item { flex-shrink: 0; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 10px; border: 0; border-radius: var(--vscode-cornerRadius-small); background: transparent; color: var(--vscode-textLink-foreground); text-align: left; }
 .pi-chat-repo-item:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .pi-chat-repo-item:disabled { opacity: 0.5; cursor: default; }
@@ -176,5 +184,5 @@
  .pi-chat-messages { padding: 36px 16px 45px; gap: 30px; }
  .pi-chat-conversation-footer { padding: 0 12px 8px; }
 }
-.pi-chat-sessions, .pi-chat-conversation-body, .pi-chat-repo-list, .pi-chat-activity-output { scrollbar-width: none; }
-.pi-chat-sessions::-webkit-scrollbar, .pi-chat-conversation-body::-webkit-scrollbar, .pi-chat-repo-list::-webkit-scrollbar, .pi-chat-activity-output::-webkit-scrollbar { display: none; }
+.pi-chat-sessions, .pi-chat-conversation-body, .pi-chat-repo-results, .pi-chat-activity-output { scrollbar-width: none; }
+.pi-chat-sessions::-webkit-scrollbar, .pi-chat-conversation-body::-webkit-scrollbar, .pi-chat-repo-results::-webkit-scrollbar, .pi-chat-activity-output::-webkit-scrollbar { display: none; }

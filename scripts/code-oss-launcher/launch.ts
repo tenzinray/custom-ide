@@ -14,9 +14,10 @@ import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { isExcludedFromProfileCopy, syncExtensions, syncTree, UnknownExtensionsError, validateExtensionSelection, type ExtensionSelection, type ITreeManifest } from './lib/profileCopy.ts';
-import { claimReuseRunDir, collectGarbage, createFreshRunDir, getRunRoot, getTempRunRoot, releaseClaim, stopCodeProcesses, writeState } from './lib/runDirs.ts';
+import { claimReuseRunDir, claimRunDir, collectGarbage, createFreshRunDir, getRunRoot, getTempRunRoot, releaseClaim, stopCodeProcesses, writeState } from './lib/runDirs.ts';
 import { writeStderr, writeStdout } from './lib/output.ts';
 import { updateLaunchSettings } from './lib/settings.ts';
+import { preparePersistentProfile } from './lib/persistentProfile.ts';
 import { waitForCdp } from './waitForCdp.ts';
 
 const CDP_TIMEOUT_MS = 90_000;
@@ -32,6 +33,7 @@ interface ILaunchOptions {
 	readonly skipPreLaunch: boolean;
 	readonly disableWorkspaceTrust: boolean;
 	readonly persistentSharedData: boolean;
+	readonly persistentProfile: boolean;
 	readonly reuse: boolean;
 	readonly wait: boolean;
 	readonly extraArgs: readonly string[];
@@ -70,6 +72,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 	let skipPreLaunch = false;
 	let disableWorkspaceTrust = false;
 	let persistentSharedData = false;
+	let persistentProfile = false;
 	let reuse = process.env.CODE_OSS_DEV_REUSE === '1';
 	let wait = false;
 	let extraArgs: string[] = [];
@@ -85,7 +88,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 		const [name, inlineValue] = argument.startsWith('--') && argument.includes('=') ? [argument.slice(0, argument.indexOf('=')), argument.slice(argument.indexOf('=') + 1)] : [argument, undefined];
 		switch (name) {
 			case '--help':
-				writeStdout('Usage: node scripts/code-oss-launcher/launch.ts --repo <root> [--wait] [--skip-prelaunch] [--session-title <title>] [--source-user-data-dir <profile>] [--copy-extensions[=<id,...>]] [--full] [--reuse|--fresh] [--agents] [--disable-workspace-trust] [--persistent-shared-data] -- <Code OSS arguments>\n');
+				writeStdout('Usage: node scripts/code-oss-launcher/launch.ts --repo <root> [--wait] [--skip-prelaunch] [--session-title <title>] [--source-user-data-dir <profile>] [--copy-extensions[=<id,...>]] [--full] [--reuse|--fresh] [--agents] [--disable-workspace-trust] [--persistent-shared-data] [--persistent-profile] -- <Code OSS arguments>\n');
 				process.exit(0);
 			case '--agents': agents = true; break;
 			case '--session-title': sessionTitle = inlineValue ?? value(index++, name); break;
@@ -109,6 +112,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 			case '--skip-prelaunch': skipPreLaunch = true; break;
 			case '--disable-workspace-trust': disableWorkspaceTrust = true; break;
 			case '--persistent-shared-data': persistentSharedData = true; break;
+			case '--persistent-profile': persistentProfile = true; break;
 			case '--reuse': reuse = true; break;
 			case '--fresh': reuse = false; break;
 			case '--wait': wait = true; break;
@@ -128,7 +132,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 			throw new UsageError(`The launcher owns ${argument.split('=')[0]}; it cannot be overridden.`);
 		}
 	}
-	return { agents, sessionTitle, sourceUserDataDir, repo, extensions, full, skipPreLaunch, disableWorkspaceTrust, persistentSharedData, reuse, wait, extraArgs };
+	return { agents, sessionTitle, sourceUserDataDir, repo, extensions, full, skipPreLaunch, disableWorkspaceTrust, persistentSharedData, persistentProfile, reuse, wait, extraArgs };
 }
 
 async function main(): Promise<number> {
@@ -144,7 +148,7 @@ async function main(): Promise<number> {
 
 	const sourceUserDataDir = path.resolve(options.sourceUserDataDir ?? process.env.CODE_OSS_DEV_AUTHED_USER_DATA_DIR ?? path.join(os.homedir(), '.vscode-oss-dev'));
 	const sourceProfileExists = await isDirectory(sourceUserDataDir);
-	if (!sourceProfileExists) {
+	if (!sourceProfileExists && !options.persistentProfile) {
 		log(`no source profile at ${sourceUserDataDir}; launching with an empty isolated profile so the user can sign in.`);
 	}
 	const [cdpPort, extHostPort, mainPort, agentHostPort] = await allocatePorts(4);
@@ -159,7 +163,7 @@ async function main(): Promise<number> {
 	try {
 		const userDataDir = path.join(runDir, 'user-data');
 		const extensionsDir = path.join(userDataDir, 'extensions');
-		const sharedDataDir = options.persistentSharedData ? getSourceSharedDataDir(repo) : path.join(runDir, 'shared-data');
+		const sharedDataDir = options.persistentSharedData && !options.persistentProfile ? getSourceSharedDataDir(repo) : path.join(runDir, 'shared-data');
 		const logFile = path.join(runDir, 'code.log');
 		await fs.writeFile(logFile, '');
 		log(`${reused ? 'reusing' : 'created'} run directory ${runDir}`);
@@ -226,7 +230,7 @@ async function main(): Promise<number> {
 			log(`WARNING: source profile ${sourceUserDataDir} has no stored GitHub session; the launched instance will prompt you to sign in.`);
 			log('Sign in to your source Code OSS profile before launching to seed authentication. Credentials are copied locally, never printed.');
 		}
-		await collectGarbage(path.dirname(runDir));
+		if (!options.persistentProfile) { await collectGarbage(path.dirname(runDir)); }
 
 		const finishedAt = performance.now();
 		writeStdout(JSON.stringify({
@@ -275,6 +279,17 @@ async function main(): Promise<number> {
 }
 
 async function createRunDir(repo: string, sourceUserDataDir: string, options: ILaunchOptions): Promise<{ runDir: string; reused: boolean }> {
+	if (options.persistentProfile) {
+		if (options.full || options.extensions) { throw new UsageError('A permanent profile preserves its own extensions and state; do not combine it with --full or --copy-extensions.'); }
+		log('preparing the permanent profile (one-time migration only; future settings and sign-ins are preserved)');
+		const runDir = await preparePersistentProfile({
+			sourceUserDataDir,
+			sourceExtensionsDir: path.join(sourceUserDataDir, 'extensions'),
+			sourceSharedDataDir: getSourceSharedDataDir(repo),
+		});
+		if (!await claimRunDir(runDir)) { throw new UsageError('The permanent Code OSS app is already running or launching. Use its existing window; no profile was reset.'); }
+		return { runDir, reused: true };
+	}
 	const root = getRunRoot(repo);
 	if (options.reuse) {
 		// One reused run directory per source profile and copy selection, as their contents differ
@@ -305,6 +320,10 @@ async function createRunDir(repo: string, sourceUserDataDir: string, options: IL
  * Returns whether the source profile has a stored GitHub session, where that can be determined.
  */
 async function prepareProfile(repo: string, sourceUserDataDir: string, sourceProfileExists: boolean, runDir: string, userDataDir: string, extensionsDir: string, sharedDataDir: string, reused: boolean, options: ILaunchOptions): Promise<boolean | undefined> {
+	if (options.persistentProfile) {
+		log(`using the permanent profile without synchronizing over it: ${userDataDir}`);
+		return undefined;
+	}
 	const manifestFile = path.join(runDir, 'launch-manifest.json');
 	const previous: IReuseManifest = reused ? await readJson<IReuseManifest>(manifestFile).then(manifest => manifest?.version === 1 ? manifest : { version: 1 }) : { version: 1 };
 	await fs.mkdir(userDataDir, { recursive: true });

@@ -51,6 +51,19 @@ suite('Pi chat repo picker', () => {
 		}, { captions: ['Current workspace', 'All repositories'], names: ['alpha', 'alpha', 'zebra'], classes: ['pi-chat-repo-item', 'pi-chat-repo-item', 'pi-chat-repo-item'] });
 	});
 
+	test('groups workspace and other repos under a single results scroller', () => {
+		const element = parent();
+		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { }));
+		body.setRepos([alpha, zebra], [alpha], undefined);
+		const results = element.querySelector('.pi-chat-repo-results')!;
+		assert.deepStrictEqual({
+			workspaceInside: !!results.querySelector('.pi-chat-repo-suggestions .pi-chat-repo-workspace'),
+			allInside: !!results.querySelector('.pi-chat-repo-list'),
+			searchInside: !!results.querySelector('input'),
+			workspaceRows: results.querySelector('.pi-chat-repo-workspace strong')?.textContent,
+		}, { workspaceInside: true, allInside: true, searchInside: false, workspaceRows: 'alpha' });
+	});
+
 	test('search filters both workspace suggestions and all repos and Enter selects the match', () => {
 		const element = parent();
 		const selected: string[] = [];

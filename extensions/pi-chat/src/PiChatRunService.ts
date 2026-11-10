@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { access, open, realpath } from 'node:fs/promises';
+import { open, realpath, stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { createAgentSession, getAgentDir, hasTrustRequiringProjectResources, ModelRuntime, ProjectTrustStore, SessionManager, SettingsManager, type AgentSession, type AgentSessionEvent, type ContextUsage } from '@earendil-works/pi-coding-agent';
 import type { PiChatCreatedSession, PiChatQueuedPrompt, PiChatRunEvent, PiChatRunSnapshot } from '../../../src/vs/workbench/contrib/piChat/common/pi-chat-run-types.js';
@@ -74,11 +74,16 @@ async function openSession(id: string | undefined, file: string | undefined, cwd
 	}
 }
 
-/** Create a persistent Pi session for a selected local repository. */
+/** Workspace project folders do not need Git metadata to be valid Pi working directories. */
+async function checkProjectDirectory(cwd: string): Promise<void> {
+	if (typeof cwd !== 'string' || !cwd) { throw new Error('Select a local project folder.'); }
+	const directory = await stat(cwd).catch(() => undefined);
+	if (!directory?.isDirectory()) { throw new Error('Select a local project folder.'); }
+}
+
+/** Create a persistent Pi session for a selected local project. */
 export async function createPiChatSession(cwd: string): Promise<PiChatCreatedSession> {
-	if (typeof cwd !== 'string' || !cwd) { throw new Error('Select a local Git repository.'); }
-	try { await access(resolve(cwd, '.git')); }
-	catch { throw new Error('Select a local Git repository.'); }
+	await checkProjectDirectory(cwd);
 	const run = await openSession(undefined, undefined, cwd);
 	return { id: run.session.sessionId, sessionFile: run.session.sessionFile! };
 }
@@ -86,7 +91,7 @@ export async function createPiChatSession(cwd: string): Promise<PiChatCreatedSes
 /** Recreate an unsaved Pi draft using its original session ID after a reload. */
 export async function restorePiChatDraft(id: string, cwd: string): Promise<PiChatCreatedSession> {
 	if (!/^[a-f0-9-]{36}$/.test(id) || typeof cwd !== 'string' || !cwd) { throw new Error('Invalid Pi draft.'); }
-	await access(resolve(cwd, '.git'));
+	await checkProjectDirectory(cwd);
 	const run = runs.get(id) ?? await openSession(id, undefined, cwd);
 	return { id: run.session.sessionId, sessionFile: run.session.sessionFile! };
 }

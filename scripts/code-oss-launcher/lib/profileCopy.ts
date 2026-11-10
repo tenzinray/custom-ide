@@ -12,24 +12,29 @@ import * as path from 'node:path';
 import { writeStderr } from './output.ts';
 
 /**
- * What a slim profile copy leaves out: transient, regenerable, or known-unneeded state.
+ * Runtime/cache exclusions shared by slim copies and one-time offline profile migration.
  * Patterns starting with `/` match top-level entries; patterns containing `/` match consecutive
  * path segments at any depth; other patterns match entry names. `*` is the only wildcard.
  */
-const profileExcludePatterns: readonly string[] = [
-	'/extensions', // copied separately
-	'/workspaceStorage', 'User/workspaceStorage', // per-workspace state, including chat sessions
-	'User/History', // local file edit history
+const transientProfileExcludePatterns: readonly string[] = [
 	'/CachedExtensionVSIXs',
 	'/logs',
 	'/Cache', '/Code Cache', '/CachedData', '/component_crx_cache',
 	'/GPUCache', '/ShaderCache', '/Dawn*Cache',
 	'Partitions/vscode-browser/Cache', 'Partitions/vscode-browser/Code Cache',
 	'Partitions/vscode-browser/GPUCache', 'Partitions/vscode-browser/Dawn*Cache',
-	'/Backups', '/blob_storage', '/BrowserMetrics', '/Crashpad',
+	'/blob_storage', '/BrowserMetrics', '/Crashpad',
 	'/Session Storage',
 	'/Singleton*',
 	'*.lock', '*.sock',
+];
+
+const profileExcludePatterns: readonly string[] = [
+	'/extensions', // copied separately for isolated launches
+	'/workspaceStorage', 'User/workspaceStorage', // per-workspace state, including chat sessions
+	'User/History', // local file edit history
+	'/Backups', // preserve hot-exit backups when migrating a permanent profile
+	...transientProfileExcludePatterns,
 ];
 
 type CompiledPattern =
@@ -44,22 +49,36 @@ function compileGlob(glob: string): RegExp {
 	return new RegExp(`^${source}$`, globFlags);
 }
 
-const compiledProfileExcludePatterns: readonly CompiledPattern[] = profileExcludePatterns.map((pattern): CompiledPattern => {
-	if (pattern.startsWith('/')) {
-		return { kind: 'topLevel', regExp: compileGlob(pattern.slice(1)) };
-	}
-	if (pattern.includes('/')) {
-		return { kind: 'segments', regExps: pattern.split('/').map(compileGlob) };
-	}
-	return { kind: 'name', regExp: compileGlob(pattern) };
-});
+function compilePatterns(patterns: readonly string[]): readonly CompiledPattern[] {
+	return patterns.map((pattern): CompiledPattern => {
+		if (pattern.startsWith('/')) {
+			return { kind: 'topLevel', regExp: compileGlob(pattern.slice(1)) };
+		}
+		if (pattern.includes('/')) {
+			return { kind: 'segments', regExps: pattern.split('/').map(compileGlob) };
+		}
+		return { kind: 'name', regExp: compileGlob(pattern) };
+	});
+}
+
+const compiledProfileExcludePatterns = compilePatterns(profileExcludePatterns);
+const compiledTransientProfileExcludePatterns = compilePatterns(transientProfileExcludePatterns);
 
 /**
  * Whether a slim profile copy leaves out the entry at the given path segments, relative to the profile root.
  */
 export function isExcludedFromProfileCopy(segments: readonly string[]): boolean {
+	return matchesExclusion(segments, compiledProfileExcludePatterns);
+}
+
+/** One-time offline migration keeps settings, extensions, workspace state, history and backups. */
+export function isExcludedFromProfileMigration(segments: readonly string[]): boolean {
+	return matchesExclusion(segments, compiledTransientProfileExcludePatterns);
+}
+
+function matchesExclusion(segments: readonly string[], patterns: readonly CompiledPattern[]): boolean {
 	const name = segments[segments.length - 1];
-	for (const pattern of compiledProfileExcludePatterns) {
+	for (const pattern of patterns) {
 		switch (pattern.kind) {
 			case 'topLevel':
 				if (segments.length === 1 && pattern.regExp.test(name)) {

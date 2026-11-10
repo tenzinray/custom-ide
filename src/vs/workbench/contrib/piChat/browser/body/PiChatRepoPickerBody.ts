@@ -29,10 +29,11 @@ export class PiChatRepoPickerBody extends Disposable {
 			placeholder: localize('piChat.searchRepos', "Search repositories..."),
 			'aria-label': localize('piChat.searchReposLabel', "Search repositories"),
 		})) as HTMLInputElement;
-		this.suggestions = append(this.element, $('.pi-chat-repo-suggestions'));
-		this.list = append(this.element, $('.pi-chat-repo-list'));
+		const results = append(this.element, $('.pi-chat-repo-results'));
+		this.suggestions = append(results, $('.pi-chat-repo-suggestions'));
+		this.list = append(results, $('.pi-chat-repo-list'));
 		this.list.textContent = localize('piChat.findingRepos', "Finding repositories...");
-		this.openFolder = append(this.element, $('button.pi-chat-repo-open-folder', { type: 'button' }, localize('piChat.openFinder', "Open Finder"))) as HTMLButtonElement;
+		this.openFolder = append(results, $('button.pi-chat-repo-open-folder', { type: 'button' }, localize('piChat.openFinder', "Open Finder"))) as HTMLButtonElement;
 		this._register(addDisposableListener(this.openFolder, 'click', onOpenFolder));
 		this._register(addDisposableListener(this.search, 'input', () => this.render()));
 		this._register(addDisposableListener(this.search, 'keydown', event => {

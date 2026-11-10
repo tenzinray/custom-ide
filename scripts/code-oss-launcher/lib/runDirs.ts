@@ -9,7 +9,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { promises as fs, realpathSync } from 'node:fs';
+import { existsSync, promises as fs, realpathSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -17,6 +17,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 const STATE_FILE = 'launch-state.json';
 const CLAIM_FILE = 'launch-claim.json';
 const REUSE_PREFIX = 'reuse-';
+export const PROFILE_MIGRATION_MARKER = '.pending-profile-migration';
+export const PERSISTENT_PROFILE_MARKER = 'persistent-profile-ready.json';
 const DELETING_MARKER = '.deleting-';
 // A launcher that has held a claim this long is assumed to be gone, whatever its PID says
 const CLAIM_TIMEOUT_MS = 10 * 60 * 1000;
@@ -123,22 +125,27 @@ export async function claimReuseRunDir(root: string, key: string): Promise<strin
 	const runDir = path.join(root, `${REUSE_PREFIX}${key}`);
 	await ensureRunRoot(root);
 	await fs.mkdir(runDir, { recursive: true, mode: 0o700 });
+	return await claimRunDir(runDir) ? runDir : undefined;
+}
+
+/** Claims an already-created private directory without copying or resetting its profile. */
+export async function claimRunDir(runDir: string): Promise<boolean> {
 	const claimFile = path.join(runDir, CLAIM_FILE);
 	try {
 		await fs.writeFile(claimFile, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: 'wx' });
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || await isClaimActive(runDir)) {
-			return undefined;
+			return false;
 		}
 		// A launch that ended without releasing its claim
 		await fs.rm(claimFile, { force: true });
-		return claimReuseRunDir(root, key);
+		return claimRunDir(runDir);
 	}
 	if (await isCodeRunningIn(runDir)) {
 		await releaseClaim(runDir);
-		return undefined;
+		return false;
 	}
-	return runDir;
+	return true;
 }
 
 export async function releaseClaim(runDir: string): Promise<void> {
@@ -178,26 +185,25 @@ async function isCodeRunningIn(runDir: string): Promise<boolean> {
 		return !(await canRename(runDir));
 	}
 	const state = await readState(runDir);
-	return state?.codePid !== undefined && isCodeProcessOf(runDir, state.codePid);
+	return (state?.codePid !== undefined && isCodeProcessOf(runDir, state.codePid)) || findCodeProcesses(runDir).length > 0;
 }
 
 /**
- * The `--user-data-dir` argument launches pass for a run directory, in each spelling the directory
- * may have in a command line.
+ * The `--user-data-dir` argument in each spelling the profile directory may have in a command line.
  */
-function getUserDataArguments(runDir: string): string[] {
-	const spellings = new Set([path.resolve(runDir)]);
+function getUserDataArguments(userDataDir: string): string[] {
+	const spellings = new Set([path.resolve(userDataDir)]);
 	try {
-		spellings.add(realpathSync.native(runDir));
+		spellings.add(realpathSync.native(userDataDir));
 	} catch {
 		// Already gone
 	}
-	return [...spellings].map(spelling => `--user-data-dir=${path.join(spelling, 'user-data')}`);
+	return [...spellings].map(spelling => `--user-data-dir=${spelling}`);
 }
 
-function matchesUserDataArgument(commandLine: string, runDir: string): boolean {
+function matchesUserDataArgument(commandLine: string, userDataDir: string): boolean {
 	const flags = process.platform === 'win32' ? 'i' : '';
-	return getUserDataArguments(runDir).some(argument => new RegExp(`(?:^|[\\s"])${escapeRegExp(argument)}(?=["\\s]|$)`, flags).test(commandLine));
+	return getUserDataArguments(userDataDir).some(argument => new RegExp(`(?:^|[\\s"])${escapeRegExp(argument)}(?=["\\s]|$)`, flags).test(commandLine));
 }
 
 /**
@@ -245,22 +251,31 @@ export function isCodeProcessOf(runDir: string, pid: number): boolean {
 		return findCodeProcesses(runDir).includes(pid);
 	}
 	const result = spawnSync('ps', ['-o', 'args=', '-p', String(pid)], { encoding: 'utf8' });
-	return result.status === 0 && matchesUserDataArgument(result.stdout, runDir);
+	return result.status === 0 && matchesUserDataArgument(result.stdout, path.join(runDir, 'user-data'));
 }
 
-/**
- * The processes started with the profile in `runDir` on Windows: Code and its helper processes.
- */
+/** Processes using a run's exact profile, including replacement main processes after a restart. */
 export function findCodeProcesses(runDir: string): number[] {
+	return findProcessesUsingProfile(path.join(runDir, 'user-data'));
+}
+
+/** Used by migration to refuse copying any live source or destination profile. */
+export function findProcessesUsingProfile(userDataDir: string): number[] {
 	if (process.platform !== 'win32') {
-		throw new Error('findCodeProcesses is only implemented on Windows');
+		const result = spawnSync('ps', ['-axo', 'pid=,args='], { encoding: 'utf8' });
+		if (result.status !== 0) { throw new Error('Cannot check whether the profile is in use; refusing to copy it.'); }
+		return result.stdout.split(/\r?\n/).flatMap(line => {
+			const match = /^\s*(\d+)\s+(.+)$/.exec(line);
+			return match && matchesUserDataArgument(match[2], userDataDir) ? [Number(match[1])] : [];
+		});
 	}
 	const script = `Get-CimInstance Win32_Process -Filter "CommandLine like '%--user-data-dir=%'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`;
 	const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `[Console]::OutputEncoding = [Text.Encoding]::UTF8; ${script}`], { encoding: 'utf8' });
+	if (result.status !== 0) { throw new Error('Cannot check whether the profile is in use; refusing to copy or remove it.'); }
 	return (result.stdout ?? '').split(/\r?\n/).flatMap(line => {
 		const separator = line.indexOf('\t');
 		const pid = Number(line.slice(0, separator));
-		return separator > 0 && Number.isInteger(pid) && matchesUserDataArgument(line.slice(separator + 1), runDir) ? [pid] : [];
+		return separator > 0 && Number.isInteger(pid) && matchesUserDataArgument(line.slice(separator + 1), userDataDir) ? [pid] : [];
 	});
 }
 
@@ -328,6 +343,7 @@ export async function collectGarbage(root: string): Promise<string[]> {
 		}
 		const runDir = path.join(root, entry.name);
 		try {
+			if (existsSync(path.join(runDir, PROFILE_MIGRATION_MARKER)) || existsSync(path.join(runDir, PERSISTENT_PROFILE_MARKER))) { continue; }
 			if (entry.name.includes(DELETING_MARKER)) {
 				await fs.rm(runDir, { recursive: true, force: true, maxRetries: 5 });
 				removed.push(runDir);

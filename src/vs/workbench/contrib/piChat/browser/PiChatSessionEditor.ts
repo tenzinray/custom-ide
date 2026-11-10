@@ -33,7 +33,7 @@ export class PiChatSessionEditor extends EditorPane {
 	) {
 		super(PiChatSessionEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(selection.onDidSelectSession(session => {
-			if (this.input instanceof PiChatSessionEditorInput && this.input.session.id === session.id) { this.input.updateSession(session); }
+			if (session && this.input instanceof PiChatSessionEditorInput && this.input.session.id === session.id) { this.input.updateSession(session); }
 		}));
 	}
 

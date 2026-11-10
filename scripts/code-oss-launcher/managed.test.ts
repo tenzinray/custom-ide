@@ -10,6 +10,8 @@ import { existsSync, promises as fs } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import * as path from 'node:path';
 import { test } from 'node:test';
+import { queueProfileMigration } from './lib/persistentProfile.ts';
+import { collectGarbage, PERSISTENT_PROFILE_MARKER, PROFILE_MIGRATION_MARKER, writeState } from './lib/runDirs.ts';
 
 const launcher = path.join(import.meta.dirname, 'launch.ts');
 const cleanup = path.join(import.meta.dirname, 'cleanup', 'cleanup.ts');
@@ -40,18 +42,18 @@ test('managed launcher readiness, lifetime, isolation, forwarding and exact-run 
 	const source = path.join(root, 'source');
 	const shared = path.join(root, 'shared');
 	const runRoot = path.join(root, 'runs');
-	const env: NodeJS.ProcessEnv = { ...process.env, CODE_OSS_DEV_RUN_ROOT: runRoot, CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR: shared, CODE_OSS_DEV_REUSE: '0' };
+	const env: NodeJS.ProcessEnv = { ...process.env, CODE_OSS_DEV_RUN_ROOT: runRoot, CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR: shared, CODE_OSS_DEV_REUSE: '0', CODE_OSS_DEV_PERSISTENT_PROFILE_DIR: path.join(root, 'permanent'), CODE_OSS_DEV_PROFILE_MIGRATION_FILE: path.join(root, 'migration.json') };
 	delete env.CODE_OSS_DEV_SCRIPT_ARGS;
 	delete env.CODE_OSS_DEV_STDOUT_FILE;
 	delete env.CODE_OSS_DEV_STDERR_FILE;
 	const launches: ILaunch[] = [];
 
-	async function start(name: string, extra: string[] = [], launcherArgs: string[] = []): Promise<ILaunch> {
+	async function start(name: string, extra: string[] = [], launcherArgs: string[] = [], overrides: NodeJS.ProcessEnv = {}): Promise<ILaunch> {
 		const startedFile = path.join(root, `${name}.started.json`);
 		const readyFile = path.join(root, `${name}.ready`);
 		const exitFile = path.join(root, `${name}.exit`);
 		const child = spawn(process.execPath, [launcher, '--repo', repo, '--wait', '--skip-prelaunch', '--session-title', 'Managed $ test', '--disable-workspace-trust', '--source-user-data-dir', source, ...launcherArgs, '--',
-			`--fixture-started=${startedFile}`, `--fixture-ready=${readyFile}`, `--fixture-exit=${exitFile}`, ...extra, '--extensionDevelopmentPath=extension & 100% with spaces', 'workspace with spaces'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+			`--fixture-started=${startedFile}`, `--fixture-ready=${readyFile}`, `--fixture-exit=${exitFile}`, ...extra, '--extensionDevelopmentPath=extension & 100% with spaces', 'workspace with spaces'], { env: { ...env, ...overrides }, stdio: ['ignore', 'pipe', 'pipe'] });
 		let stdout = '';
 		let stderr = '';
 		child.stderr!.on('data', chunk => { stderr += chunk; });
@@ -188,6 +190,103 @@ test('managed launcher readiness, lifetime, isolation, forwarding and exact-run 
 			await stop(secondRecord.runDir);
 			await second.exited;
 			assert.equal(await fs.readFile(path.join(shared, 'retained-state'), 'utf8'), 'retained application state');
+		});
+
+		await t.test('permanent launches retain later settings, login state and extensions without resyncing', async () => {
+			const first = await start('permanent-first', [], ['--persistent-profile']);
+			await fs.writeFile(first.readyFile, '');
+			const record = await first.ready;
+			const blocked = await start('permanent-already-running', [], ['--persistent-profile']);
+			await assert.rejects(blocked.ready, /before readiness/);
+			assert.equal(await blocked.exited, 2);
+			assert.equal(first.child.exitCode, null);
+			await fs.writeFile(path.join(record.userDataDir, 'User/settings.json'), '{"editor.fontSize":21}');
+			await fs.writeFile(path.join(record.userDataDir, 'User/globalStorage/state.vscdb'), 'signed in after setup');
+			await fs.mkdir(path.join(record.extensionsDir, 'later-extension'), { recursive: true });
+			await fs.writeFile(path.join(record.extensionsDir, 'later-extension/package.json'), '{}');
+			await fs.writeFile(first.exitFile, '');
+			await first.exited;
+			await fs.writeFile(path.join(source, 'User/settings.json'), '{"editor.fontSize":99}');
+			const second = await start('permanent-second', [], ['--persistent-profile']);
+			await fs.writeFile(second.readyFile, '');
+			const next = await second.ready;
+			assert.deepStrictEqual({
+				profileUnchanged: next.userDataDir === record.userDataDir,
+				settings: await fs.readFile(path.join(next.userDataDir, 'User/settings.json'), 'utf8'),
+				login: await fs.readFile(path.join(next.userDataDir, 'User/globalStorage/state.vscdb'), 'utf8'),
+				extensionKept: existsSync(path.join(next.extensionsDir, 'later-extension/package.json')),
+			}, { profileUnchanged: true, settings: '{"editor.fontSize":21}', login: 'signed in after setup', extensionKept: true });
+			await fs.writeFile(second.exitFile, '');
+			await second.exited;
+			const remove = spawn(process.execPath, [cleanup, record.runDir], { env, stdio: 'ignore' });
+			const [code] = await once(remove, 'exit');
+			assert.equal(code, 2);
+			assert.equal(existsSync(record.userDataDir), true);
+			await fs.writeFile(path.join(source, 'User/settings.json'), '{"editor.fontSize":14}');
+		});
+
+		await t.test('queued migration waits for source exit and keeps workspace state, backups, extensions and shared data', async () => {
+			const live = await start('migration-source');
+			await fs.writeFile(live.readyFile, '');
+			const record = await live.ready;
+			for (const [relative, content] of Object.entries({ 'User/workspaceStorage/workspace/state': 'layout and pins', 'Backups/unsaved': 'unsaved content', 'extensions/current-extension/package.json': '{}' })) {
+				await fs.mkdir(path.dirname(path.join(record.userDataDir, relative)), { recursive: true });
+				await fs.writeFile(path.join(record.userDataDir, relative), content);
+			}
+			await fs.writeFile(path.join(record.sharedDataDir, 'trust-state'), 'existing trust');
+			const directory = path.join(root, 'from-current-window');
+			const migrationFile = path.join(root, 'current-window-migration.json');
+			const overrides = { CODE_OSS_DEV_PERSISTENT_PROFILE_DIR: directory, CODE_OSS_DEV_PROFILE_MIGRATION_FILE: migrationFile };
+			await queueProfileMigration({ sourceUserDataDir: record.userDataDir, sourceExtensionsDir: record.extensionsDir, sourceSharedDataDir: record.sharedDataDir }, migrationFile, directory);
+			const blocked = await start('migration-while-live', [], ['--persistent-profile'], overrides);
+			await assert.rejects(blocked.ready, /before readiness/);
+			assert.equal(await blocked.exited, 1);
+			assert.match(blocked.stderr(), /Quit the source Code OSS app completely/);
+			assert.equal(existsSync(directory), false);
+			assert.equal(live.child.exitCode, null);
+			await fs.writeFile(live.exitFile, '');
+			await live.exited;
+			await writeState(record.runDir, { kind: 'fresh', codePid: record.pid, lastUsedAt: 0 });
+			await collectGarbage(runRoot);
+			assert.equal(existsSync(record.userDataDir), true, 'GC must keep a pending migration source');
+			const migrated = await start('migration-after-quit', [], ['--persistent-profile'], overrides);
+			await fs.writeFile(migrated.readyFile, '');
+			const next = await migrated.ready;
+			assert.deepStrictEqual({
+				workspaceState: await fs.readFile(path.join(next.userDataDir, 'User/workspaceStorage/workspace/state'), 'utf8'),
+				backup: await fs.readFile(path.join(next.userDataDir, 'Backups/unsaved'), 'utf8'),
+				extension: existsSync(path.join(next.extensionsDir, 'current-extension/package.json')),
+				trust: await fs.readFile(path.join(next.sharedDataDir, 'trust-state'), 'utf8'),
+				planRemoved: !existsSync(migrationFile), sourceReleased: !existsSync(path.join(record.runDir, PROFILE_MIGRATION_MARKER)),
+			}, { workspaceState: 'layout and pins', backup: 'unsaved content', extension: true, trust: 'existing trust', planRemoved: true, sourceReleased: true });
+			await fs.writeFile(migrated.exitFile, '');
+			await migrated.exited;
+		});
+
+		await t.test('garbage collection recognizes a live replacement process even with a stale recorded PID', async () => {
+			const launch = await start('replacement-pid');
+			await fs.writeFile(launch.readyFile, '');
+			const record = await launch.ready;
+			await writeState(record.runDir, { kind: 'fresh', codePid: 2147483647, lastUsedAt: 0 });
+			await collectGarbage(runRoot);
+			assert.equal(existsSync(record.userDataDir), true);
+			assert.equal(launch.child.exitCode, null);
+			await fs.writeFile(launch.exitFile, '');
+			await launch.exited;
+			await stop(record.runDir);
+		});
+
+		await t.test('garbage collection and forced cleanup protect permanent profiles and queued sources', async () => {
+			for (const [index, marker] of [PERSISTENT_PROFILE_MARKER, PROFILE_MIGRATION_MARKER].entries()) {
+				const directory = path.join(runRoot, `reuse-protected-${index}`);
+				await fs.mkdir(directory, { recursive: true });
+				await writeState(directory, { kind: 'reuse', lastUsedAt: 0 });
+				await fs.writeFile(path.join(directory, marker), '{}');
+				await collectGarbage(runRoot);
+				const remove = spawn(process.execPath, [cleanup, directory, '--remove'], { env, stdio: 'ignore' });
+				const [code] = await once(remove, 'exit');
+				assert.deepStrictEqual({ code, preserved: existsSync(directory) }, { code: 2, preserved: true });
+			}
 		});
 
 		await t.test('early application exit fails without emitting readiness JSON', async () => {

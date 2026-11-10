@@ -10,7 +10,7 @@
 
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
-import { collectGarbage, isInRunRoot, isRunDirInUse, readState, removeRunDir, stopCodeProcesses } from '../lib/runDirs.ts';
+import { collectGarbage, isInRunRoot, isRunDirInUse, PERSISTENT_PROFILE_MARKER, PROFILE_MIGRATION_MARKER, readState, removeRunDir, stopCodeProcesses } from '../lib/runDirs.ts';
 import { writeStderr, writeStdout } from '../lib/output.ts';
 
 const STOP_TIMEOUT_MS = 15_000;
@@ -60,6 +60,9 @@ async function cleanup(options: ICleanupOptions): Promise<void> {
 	const { runDir } = options;
 	if (!existsSync(runDir)) {
 		throw new UsageError(`Run directory does not exist: ${runDir}`);
+	}
+	if (existsSync(path.join(runDir, PERSISTENT_PROFILE_MARKER)) || existsSync(path.join(runDir, PROFILE_MIGRATION_MARKER))) {
+		throw new UsageError(`Refusing to stop or remove a permanent profile or pending migration source: ${runDir}`);
 	}
 	if (!isInRunRoot(runDir)) {
 		throw new UsageError(`Refusing to clean a directory outside the launch run roots: ${runDir}`);

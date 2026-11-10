@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
-import { isExcludedFromProfileCopy, syncExtensions, syncTree, UnknownExtensionsError } from './profileCopy.ts';
+import { isExcludedFromProfileCopy, isExcludedFromProfileMigration, syncExtensions, syncTree, UnknownExtensionsError } from './profileCopy.ts';
 
 suite('isExcludedFromProfileCopy', () => {
 	test('matches top-level, nested and name patterns', () => {
@@ -35,6 +35,15 @@ suite('isExcludedFromProfileCopy', () => {
 			'code.lock': true, 'User/globalStorage/x.lock': true, 'main.sock': true,
 			'Local State': false, 'Network/Cookies': false, 'machineid': false,
 		});
+	});
+});
+
+test('permanent migration keeps user state while excluding only runtime caches and locks', () => {
+	const paths = ['extensions', 'User/workspaceStorage', 'User/History', 'Backups', 'User/globalStorage/state.vscdb', 'Local State', 'Network/Cookies', 'Cache', 'logs', 'SingletonLock', 'main.sock'];
+	assert.deepStrictEqual(Object.fromEntries(paths.map(relative => [relative, isExcludedFromProfileMigration(relative.split('/'))])), {
+		'extensions': false, 'User/workspaceStorage': false, 'User/History': false, 'Backups': false,
+		'User/globalStorage/state.vscdb': false, 'Local State': false, 'Network/Cookies': false,
+		'Cache': true, 'logs': true, 'SingletonLock': true, 'main.sock': true,
 	});
 });
 
