@@ -35,6 +35,7 @@ import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAnd
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
+import { getDraggedProjectFolders } from './projects/projectDragAndDrop.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -1596,6 +1597,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			return false;
 		}
 
+		// Project drops add workspace roots, regardless of the hovered file or folder.
+		if (getDraggedProjectFolders(data).length) {
+			return { accept: true, effect: { type: ListDragOverEffectType.Copy, position: ListDragOverEffectPosition.Over }, feedback: [-1] };
+		}
+
 		// Compressed folders
 		if (target) {
 			const compressedTarget = FileDragAndDrop.getCompressedStatFromDragEvent(target, originalEvent);
@@ -1775,6 +1781,18 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		this.compressedDropTargetDisposable.dispose();
+
+		const projectFolders = getDraggedProjectFolders(data);
+		if (projectFolders.length) {
+			if (this.dropEnabled) {
+				try {
+					await this.workspaceEditingService.addFolders(projectFolders.map(uri => ({ uri })));
+				} catch (error) {
+					this.dialogService.error(toErrorMessage(error));
+				}
+			}
+			return;
+		}
 
 		// Find compressed target
 		if (target) {

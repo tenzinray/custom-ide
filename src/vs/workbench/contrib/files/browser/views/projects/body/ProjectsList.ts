@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { WorkbenchList } from '../../../../../../../platform/list/browser/listService.js';
 import { isWorkspaceToOpen } from '../../../../../../../platform/window/common/window.js';
 import { getProjectResource, ProjectEntry } from '../project-entry.js';
+import { ProjectsDragAndDrop } from '../projectDragAndDrop.js';
 
 const selectFolderRow = 'select-folder';
 const selectFolderLabel = localize('projects.selectFromFinder', "Select from Finder");
@@ -78,6 +79,7 @@ export class ProjectsList extends Disposable {
 					getWidgetAriaLabel: () => localize('projects.listLabel', "Projects"),
 					getAriaLabel: entry => entry === selectFolderRow ? selectFolderLabel : isWorkspaceToOpen(entry) ? localize('projects.workspaceLabel', "{0}, workspace", entry.name) : entry.name,
 				},
+				dnd: new ProjectsDragAndDrop(),
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
 			}));
