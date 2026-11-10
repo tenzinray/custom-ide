@@ -8,11 +8,10 @@
 .explorer-projects-search .monaco-inputbox { width: 100%; }
 .explorer-projects-body { position: relative; flex: 1; min-height: 0; }
 .explorer-projects-list { height: 100%; }
-.explorer-projects-footer { flex: 0 0 38px; box-sizing: border-box; display: flex; align-items: center; padding: 6px 12px; }
-.explorer-projects-select-folder { padding: 4px 8px; border: 0; border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: pointer; }
-.explorer-projects-select-folder:hover { background: var(--vscode-button-secondaryHoverBackground); }
-.explorer-projects-select-folder:disabled { cursor: default; opacity: .6; }
-.explorer-projects-message { position: absolute; z-index: 1; top: 0; left: 12px; right: 12px; color: var(--vscode-descriptionForeground); font-size: var(--vscode-font-size); pointer-events: none; }
+.explorer-projects-message { padding: 0 12px 4px; color: var(--vscode-descriptionForeground); font-size: var(--vscode-font-size); }
 .explorer-project-row { display: flex; align-items: center; gap: 6px; padding: 0 12px 0 20px; font-size: var(--vscode-font-size); }
 .explorer-project-row > .codicon { flex-shrink: 0; color: var(--vscode-descriptionForeground); }
 .explorer-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explorer-projects .monaco-list .monaco-list-row.explorer-project-select-folder:not(.selected) > .explorer-project-name,
+.explorer-projects .monaco-list .monaco-list-row.explorer-project-select-folder:not(.selected) > .codicon { color: var(--vscode-textLink-foreground); }
+.explorer-projects-body[aria-busy="true"] .explorer-project-select-folder { opacity: .6; }

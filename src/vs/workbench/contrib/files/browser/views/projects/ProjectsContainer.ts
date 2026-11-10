@@ -21,13 +21,11 @@ import { listGitRepositories } from '../../../../workspace/browser/gitRepositori
 import { ProjectEntry } from './project-entry.js';
 import { ProjectsSearch } from './header/ProjectsSearch.js';
 import { ProjectsList } from './body/ProjectsList.js';
-import { ProjectsFooter } from './footer/ProjectsFooter.js';
 
 /** Owns repository/workspace discovery, filtering, refresh, and normal workbench opening. */
 export class ProjectsContainer extends Disposable {
 	private readonly search: ProjectsSearch;
 	private readonly body: ProjectsList;
-	private readonly footer: ProjectsFooter;
 	private selectingFolder = false;
 	private entries: ProjectEntry[] = [];
 	private loading = true;
@@ -47,8 +45,7 @@ export class ProjectsContainer extends Disposable {
 		super();
 		const shell = append(parent, $('.explorer-projects'));
 		this.search = this._register(new ProjectsSearch(shell, () => this.body.focusFirst(), () => this.body.openFirst()));
-		this.body = this._register(instantiationService.createInstance(ProjectsList, shell, (repo, newWindow) => { void this.open(repo, newWindow); }));
-		this.footer = this._register(new ProjectsFooter(shell, () => { void this.selectFolder(); }));
+		this.body = this._register(instantiationService.createInstance(ProjectsList, shell, (repo, newWindow) => { void this.open(repo, newWindow); }, () => { void this.selectFolder(); }));
 		this._register(this.search.input.onDidChange(() => this.render()));
 		this._register(workspace.onDidChangeWorkspaceFolders(() => this.render()));
 		const home = pathService.userHome({ preferLocal: true });
@@ -110,12 +107,12 @@ export class ProjectsContainer extends Disposable {
 	private async selectFolder(): Promise<void> {
 		if (this.selectingFolder || this._store.isDisposed) { return; }
 		this.selectingFolder = true;
-		this.footer.setBusy(true);
+		this.body.setBusy(true);
 		try { await this.dialogs.pickFolderAndOpen({ forceNewWindow: false, availableFileSystems: ['file'] }); }
 		catch (error) { if (!this._store.isDisposed) { this.notificationService.error(error instanceof Error ? error : String(error)); } }
-		finally { this.selectingFolder = false; if (!this._store.isDisposed) { this.footer.setBusy(false); } }
+		finally { this.selectingFolder = false; if (!this._store.isDisposed) { this.body.setBusy(false); } }
 	}
 
 	focus(): void { this.search.focus(); }
-	layout(height: number, width: number): void { this.body.layout(height - 38 - this.footer.element.offsetHeight, width); }
+	layout(height: number, width: number): void { this.body.layout(height - 38, width); }
 }

@@ -19,73 +19,97 @@ import { WorkbenchList } from '../../../../../../../platform/list/browser/listSe
 import { isWorkspaceToOpen } from '../../../../../../../platform/window/common/window.js';
 import { getProjectResource, ProjectEntry } from '../project-entry.js';
 
+const selectFolderRow = 'select-folder';
+const selectFolderLabel = localize('projects.selectFromFinder', "Select from Finder");
+type ProjectsListEntry = ProjectEntry | typeof selectFolderRow;
+
 interface ProjectRowTemplate {
+	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly hover: IManagedHover;
 }
 
-/** Flat Explorer-style rows with distinct repository/workspace icons and no primary buttons. */
-class ProjectsRenderer implements IListRenderer<ProjectEntry, ProjectRowTemplate> {
+/** Flat project rows plus the Finder action, all owned by the same native list. */
+class ProjectsRenderer implements IListRenderer<ProjectsListEntry, ProjectRowTemplate> {
 	readonly templateId = 'explorer-project';
 	constructor(private readonly hoverService: IHoverService) { }
 	renderTemplate(container: HTMLElement): ProjectRowTemplate {
 		container.classList.add('explorer-project-row');
 		return {
+			container,
 			icon: append(container, $('span', { 'aria-hidden': 'true' })),
 			label: append(container, $('span.explorer-project-name')),
 			hover: this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, ''),
 		};
 	}
-	renderElement(entry: ProjectEntry, _index: number, template: ProjectRowTemplate): void {
-		template.icon.className = ThemeIcon.asClassName(isWorkspaceToOpen(entry) ? Codicon.rootFolder : Codicon.repo);
-		template.label.textContent = entry.name;
-		template.hover.update(getProjectResource(entry).fsPath);
+	renderElement(entry: ProjectsListEntry, _index: number, template: ProjectRowTemplate): void {
+		const isFolderAction = entry === selectFolderRow;
+		template.container.classList.toggle('explorer-project-select-folder', isFolderAction);
+		template.icon.className = ThemeIcon.asClassName(isFolderAction ? Codicon.add : isWorkspaceToOpen(entry) ? Codicon.rootFolder : Codicon.repo);
+		template.label.textContent = isFolderAction ? selectFolderLabel : entry.name;
+		template.hover.update(isFolderAction ? selectFolderLabel : getProjectResource(entry).fsPath);
 	}
 	disposeTemplate(template: ProjectRowTemplate): void { template.hover.dispose(); }
 }
 
 /** List presentation, native workbench keyboard navigation, and empty/error messages only. */
 export class ProjectsList extends Disposable {
-	private readonly list: WorkbenchList<ProjectEntry>;
+	private readonly list: WorkbenchList<ProjectsListEntry>;
+	private readonly element: HTMLElement;
 	private readonly message: HTMLElement;
+	private height = 0;
+	private width = 0;
 
-	constructor(parent: HTMLElement, private readonly open: (entry: ProjectEntry, newWindow: boolean) => void,
+	constructor(parent: HTMLElement, private readonly open: (entry: ProjectEntry, newWindow: boolean) => void, private readonly selectFolder: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
-		const body = append(parent, $('.explorer-projects-body'));
-		this.message = append(body, $('.explorer-projects-message', { role: 'status' }));
-		const host = append(body, $('.explorer-projects-list'));
+		this.element = append(parent, $('.explorer-projects-body'));
+		this.message = append(this.element, $('.explorer-projects-message', { role: 'status' }));
+		const host = append(this.element, $('.explorer-projects-list'));
 		const renderer = new ProjectsRenderer(hoverService);
-		this.list = this._register(instantiationService.createInstance(WorkbenchList<ProjectEntry>, 'ExplorerProjects', host,
+		this.list = this._register(instantiationService.createInstance(WorkbenchList<ProjectsListEntry>, 'ExplorerProjects', host,
 			{ getHeight: () => 22, getTemplateId: () => renderer.templateId }, [renderer], {
-				identityProvider: { getId: entry => getProjectResource(entry).toString() },
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: entry => entry.name },
+				identityProvider: { getId: entry => entry === selectFolderRow ? selectFolderRow : getProjectResource(entry).toString() },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: entry => entry === selectFolderRow ? selectFolderLabel : entry.name },
 				accessibilityProvider: {
 					getWidgetAriaLabel: () => localize('projects.listLabel', "Projects"),
-					getAriaLabel: entry => isWorkspaceToOpen(entry) ? localize('projects.workspaceLabel', "{0}, workspace", entry.name) : entry.name,
+					getAriaLabel: entry => entry === selectFolderRow ? selectFolderLabel : isWorkspaceToOpen(entry) ? localize('projects.workspaceLabel', "{0}, workspace", entry.name) : entry.name,
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
 			}));
 		this._register(this.list.onDidOpen(event => {
-			if (event.element) { this.open(event.element, event.sideBySide); }
+			if (event.element === selectFolderRow) { this.selectFolder(); }
+			else if (event.element) { this.open(event.element, event.sideBySide); }
 		}));
 	}
 
 	setEntries(entries: readonly ProjectEntry[], activeFolders: readonly URI[], activeWorkspace: URI | undefined, message: string): void {
-		this.list.splice(0, this.list.length, entries);
+		this.list.splice(0, this.list.length, [...entries, selectFolderRow]);
 		this.list.setSelection(entries.flatMap((entry, index) => {
 			const active = isWorkspaceToOpen(entry) ? isEqual(activeWorkspace, entry.workspaceUri) : activeFolders.some(folder => isEqual(folder, entry.folderUri));
 			return active ? [index] : [];
 		}));
 		this.message.textContent = message;
 		this.message.hidden = !message;
+		this.layout(this.height, this.width);
 	}
 
-	layout(height: number, width: number): void { this.list.layout(Math.max(0, height), width); }
+	setBusy(busy: boolean): void { this.element.setAttribute('aria-busy', String(busy)); }
+
+	layout(height: number, width: number): void {
+		this.height = height;
+		this.width = width;
+		this.list.layout(Math.max(0, height - this.message.offsetHeight), width);
+	}
 	focusFirst(): void { if (this.list.length) { this.list.setFocus([0]); this.list.domFocus(); } }
-	openFirst(): void { if (this.list.length) { this.open(this.list.element(0), false); } }
+	openFirst(): void {
+		if (!this.list.length) { return; }
+		const entry = this.list.element(0);
+		if (entry === selectFolderRow) { this.selectFolder(); }
+		else { this.open(entry, false); }
+	}
 }

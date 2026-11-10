@@ -46,7 +46,7 @@ suite('Explorer Projects', () => {
 		projects.layout(220, 300);
 		await projects.refresh();
 		const search = parent.querySelector('input')!;
-		const names = () => [...parent.querySelectorAll('.explorer-project-name')].map(row => row.textContent);
+		const names = () => [...parent.querySelectorAll('.explorer-project-row:not(.explorer-project-select-folder) .explorer-project-name')].map(row => row.textContent);
 		const filter = (value: string) => { search.value = value; search.dispatchEvent(new mainWindow.Event('input', { bubbles: true })); };
 		return { projects, parent, search, names, filter, calls, root, workspaceDirectory, fileService, instantiation };
 	}
@@ -66,7 +66,7 @@ suite('Explorer Projects', () => {
 		await projects.refresh();
 		assert.deepStrictEqual({ names: names(), icons: [...parent.querySelectorAll('.explorer-project-row > .codicon')].map(icon => icon.className) }, {
 			names: ['main-ws', 'zeta', 'alpha', 'zebra'],
-			icons: ['codicon codicon-root-folder', 'codicon codicon-root-folder', 'codicon codicon-repo', 'codicon codicon-repo'],
+			icons: ['codicon codicon-root-folder', 'codicon codicon-root-folder', 'codicon codicon-repo', 'codicon codicon-repo', 'codicon codicon-add'],
 		});
 	});
 
@@ -107,22 +107,24 @@ suite('Explorer Projects', () => {
 		assert.deepStrictEqual({ before, after: names() }, { before: ['main-ws', 'alpha', 'zebra'], after: ['alpha', 'zebra'] });
 	});
 
-	test('keeps Select from Finder below the list even when no projects match', async () => {
-		const { parent, filter, instantiation } = await setup();
+	test('keeps Select from Finder as the last scrolling row even when no projects match', async () => {
+		const { parent, filter, search, instantiation } = await setup();
 		const pending = new DeferredPromise<void>();
 		const calls: IPickAndOpenOptions[] = [];
 		instantiation.stub(IFileDialogService, 'pickFolderAndOpen', async (options: IPickAndOpenOptions) => { calls.push(options); await pending.p; });
+		const last = parent.querySelector('.explorer-projects-list .monaco-list-rows')!.lastElementChild!;
+		assert.deepStrictEqual({ label: last.textContent, plus: !!last.querySelector('.codicon-add') }, { label: 'Select from Finder', plus: true });
 		filter('not-listed');
-		const button = parent.querySelector<HTMLButtonElement>('.explorer-projects-select-folder')!;
-		assert.strictEqual(button.parentElement?.previousElementSibling?.className, 'explorer-projects-body');
-		button.click();
-		button.click();
-		assert.deepStrictEqual({ text: button.textContent, disabled: button.disabled, calls }, {
-			text: 'Select from Finder', disabled: true, calls: [{ forceNewWindow: false, availableFileSystems: ['file'] }],
+		const action = parent.querySelector('.explorer-project-select-folder')!;
+		assert.strictEqual(action.closest('.monaco-list-row'), action);
+		search.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		search.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual({ busy: parent.querySelector('.explorer-projects-body')?.getAttribute('aria-busy'), calls }, {
+			busy: 'true', calls: [{ forceNewWindow: false, availableFileSystems: ['file'] }],
 		});
 		await pending.complete();
 		await timeout(0);
-		assert.strictEqual(button.disabled, false);
+		assert.strictEqual(parent.querySelector('.explorer-projects-body')?.getAttribute('aria-busy'), 'false');
 	});
 
 	test('keeps the search field free of a decorative icon', async () => {
