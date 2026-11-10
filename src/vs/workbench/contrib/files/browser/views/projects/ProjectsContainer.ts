@@ -8,6 +8,7 @@ import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
+import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -20,11 +21,14 @@ import { listGitRepositories } from '../../../../workspace/browser/gitRepositori
 import { ProjectEntry } from './project-entry.js';
 import { ProjectsSearch } from './header/ProjectsSearch.js';
 import { ProjectsList } from './body/ProjectsList.js';
+import { ProjectsFooter } from './footer/ProjectsFooter.js';
 
 /** Owns repository/workspace discovery, filtering, refresh, and normal workbench opening. */
 export class ProjectsContainer extends Disposable {
 	private readonly search: ProjectsSearch;
 	private readonly body: ProjectsList;
+	private readonly footer: ProjectsFooter;
+	private selectingFolder = false;
 	private entries: ProjectEntry[] = [];
 	private loading = true;
 	private failed = false;
@@ -38,11 +42,13 @@ export class ProjectsContainer extends Disposable {
 		@IWorkspaceContextService private readonly workspace: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IFileDialogService private readonly dialogs: IFileDialogService,
 	) {
 		super();
 		const shell = append(parent, $('.explorer-projects'));
 		this.search = this._register(new ProjectsSearch(shell, () => this.body.focusFirst(), () => this.body.openFirst()));
 		this.body = this._register(instantiationService.createInstance(ProjectsList, shell, (repo, newWindow) => { void this.open(repo, newWindow); }));
+		this.footer = this._register(new ProjectsFooter(shell, () => { void this.selectFolder(); }));
 		this._register(this.search.input.onDidChange(() => this.render()));
 		this._register(workspace.onDidChangeWorkspaceFolders(() => this.render()));
 		const home = pathService.userHome({ preferLocal: true });
@@ -101,6 +107,15 @@ export class ProjectsContainer extends Disposable {
 		catch (error) { this.notificationService.error(error instanceof Error ? error : String(error)); }
 	}
 
+	private async selectFolder(): Promise<void> {
+		if (this.selectingFolder || this._store.isDisposed) { return; }
+		this.selectingFolder = true;
+		this.footer.setBusy(true);
+		try { await this.dialogs.pickFolderAndOpen({ forceNewWindow: false, availableFileSystems: ['file'] }); }
+		catch (error) { if (!this._store.isDisposed) { this.notificationService.error(error instanceof Error ? error : String(error)); } }
+		finally { this.selectingFolder = false; if (!this._store.isDisposed) { this.footer.setBusy(false); } }
+	}
+
 	focus(): void { this.search.focus(); }
-	layout(height: number, width: number): void { this.body.layout(height - 38, width); }
+	layout(height: number, width: number): void { this.body.layout(height - 38 - this.footer.element.offsetHeight, width); }
 }

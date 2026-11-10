@@ -94,6 +94,22 @@ suite('Pi chat repo picker', () => {
 		assert.deepStrictEqual(focused, [0, 1, 2, 3, 3, 2, 1, 0, -1, 3]);
 	});
 
+	test('keeps Open Finder after all repositories across filtering and discovery errors', () => {
+		const element = parent();
+		let opened = 0;
+		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { opened++; }));
+		body.setRepos([alpha, zebra], [alpha], undefined);
+		const button = element.querySelector<HTMLButtonElement>('.pi-chat-repo-open-folder')!;
+		const search = element.querySelector('input')!;
+		search.value = 'missing';
+		search.dispatchEvent(new mainWindow.Event('input'));
+		assert.strictEqual(button.parentElement?.lastElementChild, button);
+		assert.strictEqual(button.previousElementSibling?.className, 'pi-chat-repo-list');
+		body.setError();
+		button.click();
+		assert.strictEqual(opened, 1);
+	});
+
 	test('workspace heading is outside the tinted repo card', () => {
 		const element = parent();
 		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { }));

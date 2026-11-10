@@ -6,6 +6,8 @@
 import * as assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { IFileDialogService, IPickAndOpenOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -103,6 +105,24 @@ suite('Explorer Projects', () => {
 		await fileService.del(uri);
 		await projects.refresh();
 		assert.deepStrictEqual({ before, after: names() }, { before: ['main-ws', 'alpha', 'zebra'], after: ['alpha', 'zebra'] });
+	});
+
+	test('keeps Select from Finder below the list even when no projects match', async () => {
+		const { parent, filter, instantiation } = await setup();
+		const pending = new DeferredPromise<void>();
+		const calls: IPickAndOpenOptions[] = [];
+		instantiation.stub(IFileDialogService, 'pickFolderAndOpen', async (options: IPickAndOpenOptions) => { calls.push(options); await pending.p; });
+		filter('not-listed');
+		const button = parent.querySelector<HTMLButtonElement>('.explorer-projects-select-folder')!;
+		assert.strictEqual(button.parentElement?.previousElementSibling?.className, 'explorer-projects-body');
+		button.click();
+		button.click();
+		assert.deepStrictEqual({ text: button.textContent, disabled: button.disabled, calls }, {
+			text: 'Select from Finder', disabled: true, calls: [{ forceNewWindow: false, availableFileSystems: ['file'] }],
+		});
+		await pending.complete();
+		await timeout(0);
+		assert.strictEqual(button.disabled, false);
 	});
 
 	test('keeps the search field free of a decorative icon', async () => {
