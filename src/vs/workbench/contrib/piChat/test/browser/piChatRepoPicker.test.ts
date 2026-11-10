@@ -12,6 +12,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -41,19 +42,19 @@ suite('Pi chat repo picker', () => {
 
 	test('uses one workspace caption and the same repo rows as the full list', () => {
 		const element = parent();
-		const body = store.add(new PiChatRepoPickerBody(element, () => { }));
+		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { }));
 		body.setRepos([alpha, zebra], [alpha], undefined);
 		assert.deepStrictEqual({
 			captions: [...element.querySelectorAll('.pi-chat-repo-caption')].map(e => e.textContent),
 			names: [...element.querySelectorAll('.pi-chat-repo-item strong')].map(e => e.textContent),
-			classes: [...element.querySelectorAll('button')].map(e => e.className),
+			classes: [...element.querySelectorAll('.pi-chat-repo-item')].map(e => e.className),
 		}, { captions: ['Current workspace', 'All repositories'], names: ['alpha', 'alpha', 'zebra'], classes: ['pi-chat-repo-item', 'pi-chat-repo-item', 'pi-chat-repo-item'] });
 	});
 
 	test('search filters both workspace suggestions and all repos and Enter selects the match', () => {
 		const element = parent();
 		const selected: string[] = [];
-		const body = store.add(new PiChatRepoPickerBody(element, repo => selected.push(repo.name)));
+		const body = store.add(new PiChatRepoPickerBody(element, repo => selected.push(repo.name), () => { }));
 		body.setRepos([alpha, zebra], [alpha], undefined);
 		const search = element.querySelector('input')!;
 		search.value = ' ZE ';
@@ -66,14 +67,72 @@ suite('Pi chat repo picker', () => {
 
 	test('busy selection stays disabled across searches without locking the search field', () => {
 		const element = parent();
-		const body = store.add(new PiChatRepoPickerBody(element, () => { }));
+		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { }));
 		body.setRepos([alpha, zebra], [alpha], undefined);
 		body.setBusy(true);
 		const search = element.querySelector('input')!;
 		search.dispatchEvent(new mainWindow.Event('input'));
 		assert.deepStrictEqual({ busy: body.element.getAttribute('aria-busy'), buttons: [...element.querySelectorAll('button')].map(e => e.disabled), searchDisabled: search.disabled }, {
-			busy: 'true', buttons: [true, true, true], searchDisabled: false,
+			busy: 'true', buttons: [true, true, true, true], searchDisabled: false,
 		});
+	});
+
+	test('keyboard navigation crosses all sections without scrolling instead of moving focus', () => {
+		const element = parent();
+		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { }));
+		body.setRepos([alpha, zebra], [alpha], zebra);
+		const search = element.querySelector('input')!;
+		const buttons = [...element.querySelectorAll('.pi-chat-repo-item')];
+		const focused: number[] = [];
+		search.focus();
+		for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp']) {
+			const event = new mainWindow.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+			mainWindow.document.activeElement!.dispatchEvent(event);
+			assert.strictEqual(event.defaultPrevented, true);
+			focused.push(buttons.indexOf(mainWindow.document.activeElement!));
+		}
+		assert.deepStrictEqual(focused, [0, 1, 2, 3, 3, 2, 1, 0, -1, 3]);
+	});
+
+	test('workspace heading is outside the tinted repo card', () => {
+		const element = parent();
+		const body = store.add(new PiChatRepoPickerBody(element, () => { }, () => { }));
+		body.setRepos([alpha], [alpha], undefined);
+		assert.deepStrictEqual({
+			captionInside: !!element.querySelector('.pi-chat-repo-workspace .pi-chat-repo-caption'),
+			workspaceRows: element.querySelectorAll('.pi-chat-repo-workspace .pi-chat-repo-item').length,
+		}, { captionInside: false, workspaceRows: 1 });
+	});
+
+	test('Open Finder accepts a non-repo folder and cancellation does not create a chat', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		let selected: PiChatSessionSummary | undefined;
+		instantiation.set(IPiChatSelectionService, upcastPartial<IPiChatSelectionService>({ selectSession: session => { selected = session; } }));
+		instantiation.stub(IViewsService, {});
+		instantiation.stub(IViewsService, 'openView', async () => undefined);
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {});
+		instantiation.stub(ICommandService, 'executeCommand', async (_id: string, folder: string) => {
+			commands.push(folder);
+			return { id: 'folder-draft', sessionFile: '/sessions/folder-draft.jsonl' };
+		});
+		let result: URI[] | undefined = undefined;
+		let options: IOpenDialogOptions | undefined;
+		instantiation.stub(IFileDialogService, {});
+		instantiation.stub(IFileDialogService, 'showOpenDialog', async (value: IOpenDialogOptions) => { options = value; return result; });
+		const element = parent();
+		store.add(instantiation.createInstance(PiChatRepoPickerContainer, element, undefined));
+		const button = element.querySelector<HTMLButtonElement>('.pi-chat-repo-open-folder')!;
+		button.click();
+		await timeout(0);
+		assert.deepStrictEqual(commands, []);
+		result = [URI.file('/notes/not-a-repository')];
+		button.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			commands, selected: selected && [selected.repoName, selected.repoPath, selected.isDraft],
+			folders: options?.canSelectFolders, files: options?.canSelectFiles, multiple: options?.canSelectMany,
+		}, { commands: [result[0].fsPath], selected: ['not-a-repository', result[0].fsPath, true], folders: true, files: false, multiple: false });
 	});
 
 	test('empty repo selection does not auto-follow or show transcript scrolling controls', () => {
@@ -112,7 +171,7 @@ suite('Pi chat repo picker', () => {
 		const picker = store.add(instantiation.createInstance(PiChatRepoPickerContainer, element, () => { closed++; }));
 		await picker.refresh();
 		assert.deepStrictEqual([...element.querySelectorAll('.pi-chat-repo-suggestions strong')].map(e => e.textContent), ['alpha', 'workouts']);
-		const first = element.querySelector<HTMLButtonElement>('button')!;
+		const first = element.querySelector<HTMLButtonElement>('.pi-chat-repo-item')!;
 		first.click();
 		first.click();
 		await pending.complete({ id: 'new-draft', sessionFile: '/sessions/new-draft.jsonl' });

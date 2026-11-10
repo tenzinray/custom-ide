@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Sequencer } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer } from '../../../../../base/common/async.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
@@ -20,7 +20,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { ResourceContextKey, WorkbenchStateContext } from '../../../../common/contextkeys.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -508,8 +508,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, this.filter, () => this.tree);
 
+		const projectSectionEnds = new Set<ExplorerItem>();
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, this.findProvider.highlightTree, updateWidth);
+		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, this.findProvider.highlightTree, updateWidth,
+			item => projectSectionEnds.has(item),
+			project => {
+				for (const child of project.children.values()) {
+					if (this.tree.hasNode(child)) {
+						this.tree.collapse(child, true);
+					}
+				}
+			});
 		this._register(this.renderer);
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
@@ -622,6 +631,36 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		// Recompute rounded section ends after expansion, filtering, or file changes.
+		// Defer until the tree finishes its model update to avoid rendering reentry.
+		const projectSectionRefresh = this._register(new RunOnceScheduler(() => {
+			if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !this.explorerService.isEditable(undefined)) {
+				const previousSectionEnds = new Set(projectSectionEnds);
+				projectSectionEnds.clear();
+				// Navigate rendered nodes rather than model children: this respects
+				// collapsed folders, filters, and compact-folder representatives.
+				const navigator = this.tree.navigate();
+				let previous: ExplorerItem | undefined;
+				for (let item = navigator.first(); item; item = navigator.next()) {
+					if (previous && item.root !== previous.root) {
+						projectSectionEnds.add(previous);
+					}
+					previous = item;
+				}
+				if (previous) {
+					projectSectionEnds.add(previous);
+				}
+				// Static-height lists require element-specific rerenders. Only the
+				// old and new section ends need their rounding updated.
+				for (const item of new Set([...previousSectionEnds, ...projectSectionEnds])) {
+					if (previousSectionEnds.has(item) !== projectSectionEnds.has(item) && this.tree.hasNode(item)) {
+						this.tree.rerender(item);
+					}
+				}
+			}
+		}, 0));
+		this._register(Event.any(this.tree.onDidChangeModel, this.tree.onDidChangeCollapseState)(() => projectSectionRefresh.schedule()));
 
 		this._register(this.tree.onDidScroll(async e => {
 			const editable = this.explorerService.getEditable();
@@ -1107,7 +1146,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), WorkbenchStateContext.notEqualsTo('workspace')),
 				order: 10
 			}
 		});
@@ -1130,7 +1169,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), WorkbenchStateContext.notEqualsTo('workspace')),
 				order: 20
 			}
 		});

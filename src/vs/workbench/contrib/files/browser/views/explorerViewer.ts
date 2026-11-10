@@ -71,13 +71,14 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { ExplorerProjectActions } from './ExplorerProjectActions.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
 	static readonly ITEM_HEIGHT = 22;
 
 	getHeight(element: ExplorerItem): number {
-		return ExplorerDelegate.ITEM_HEIGHT;
+		return element.isRoot ? 30 : ExplorerDelegate.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: ExplorerItem): string {
@@ -834,6 +835,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		private labels: ResourceLabels,
 		private highlightTree: IExplorerFindHighlightTree,
 		private updateWidth: (stat: ExplorerItem) => void,
+		private readonly isLastProjectItem: (item: ExplorerItem) => boolean,
+		private readonly collapseProject: (project: ExplorerItem) => void,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
@@ -899,6 +902,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	renderElement(node: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		const stat = node.element;
 		templateData.currentContext = stat;
+		this.renderProjectSection(stat, templateData);
 
 		const editableData = this.explorerService.getEditableData(stat);
 
@@ -921,6 +925,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		const stat = node.element.elements[node.element.elements.length - 1];
 		templateData.currentContext = stat;
+		this.renderProjectSection(stat, templateData);
 
 		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
 		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
@@ -985,6 +990,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}
 	}
 
+	private renderProjectSection(stat: ExplorerItem, templateData: IFileTemplateData): void {
+		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		// Mark the template, not its virtualized row: the list can render a
+		// detached template before attaching it to a (possibly recycled) row.
+		templateData.container.classList.toggle('explorer-project-header', inWorkspace && stat.isRoot);
+		templateData.container.classList.toggle('explorer-project-child', inWorkspace && !stat.isRoot);
+		templateData.container.classList.toggle('explorer-project-last', inWorkspace && this.isLastProjectItem(stat));
+		if (inWorkspace && stat.isRoot) {
+			templateData.elementDisposables.add(new ExplorerProjectActions(templateData.container, stat, this.collapseProject));
+		}
+	}
+
 	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): void {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
@@ -1007,6 +1024,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.contribs.forEach(c => c.setResource(stat.resource));
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+			hideIcon: stat.isRoot && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
 			matches: createMatches(filterData),

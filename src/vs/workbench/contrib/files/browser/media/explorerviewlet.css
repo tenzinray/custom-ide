@@ -3,6 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Match the repo picker's base so the title-colored project cards remain
+ * distinguishable even when the theme gives the sidebar and title the same fill. */
+.explorer-folders-view:has(.explorer-project-header, .explorer-project-child),
+.explorer-folders-view:has(.explorer-project-header, .explorer-project-child) .monaco-list .monaco-list-rows {
+	background-color: var(--vscode-editor-background);
+}
+
+/* Expanded projects form one recessed, rounded surface across their native
+ * tree rows. The inset at each header keeps neighboring project cards separate. */
+.explorer-folders-view .monaco-list-row:has(.explorer-project-header, .explorer-project-child) {
+	isolation: isolate;
+}
+
+.explorer-folders-view .monaco-list-row:is([aria-expanded="true"]:has(.explorer-project-header), :has(.explorer-project-child))::before {
+	content: '';
+	position: absolute;
+	inset: 0 4px;
+	z-index: -1;
+	pointer-events: none;
+	background-color: var(--vscode-sideBarTitle-background);
+}
+
+.explorer-folders-view .monaco-list-row:has(.explorer-project-header)[aria-expanded="true"]::before {
+	top: 4px;
+	border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+}
+
+.explorer-folders-view .monaco-list-row:has(.explorer-project-last):has(.explorer-project-header, .explorer-project-child)::before {
+	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
+}
+
+.explorer-folders-view .monaco-list-row:is([aria-expanded="true"]:has(.explorer-project-header), :has(.explorer-project-child)):is(.selected, :hover)::before {
+	background-color: transparent;
+}
+
+.explorer-folders-view .monaco-tl-contents.explorer-project-header {
+	display: flex;
+	align-items: center;
+}
+
+.explorer-folders-view .explorer-project-header .explorer-item {
+	min-width: 0;
+	font-weight: 600;
+}
+
+.explorer-folders-view .monaco-list-row:has(.explorer-project-header) .monaco-tl-twistie::before {
+	content: var(--vscode-icon-repo-content);
+	font-family: var(--vscode-icon-repo-font-family);
+	transform: none;
+}
+
+.explorer-folders-view .monaco-list-row:has(.explorer-project-header) .monaco-tl-twistie {
+	visibility: visible !important;
+	opacity: 1;
+}
+
+.explorer-folders-view .explorer-project-actions {
+	flex-shrink: 0;
+	padding-right: 4px;
+}
+
+.explorer-folders-view .explorer-project-actions .action-label {
+	padding: 2px;
+}
+
 /* --- Explorer viewlet --- */
 .explorer-folders-view,
 .explorer-folders-view {

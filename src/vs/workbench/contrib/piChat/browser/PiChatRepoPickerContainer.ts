@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -39,10 +41,11 @@ export class PiChatRepoPickerContainer extends Disposable {
 		@IPiChatSelectionService private readonly selection: IPiChatSelectionService,
 		@IViewsService private readonly views: IViewsService,
 		@INotificationService private readonly notifications: INotificationService,
+		@IFileDialogService private readonly dialogs: IFileDialogService,
 	) {
 		super();
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
-		this.body = this._register(new PiChatRepoPickerBody(parent, repo => { void this.createDraft(repo); }));
+		this.body = this._register(new PiChatRepoPickerBody(parent, repo => { void this.createDraft(repo); }, () => { void this.openFolder(); }));
 		this._register(workspace.onDidChangeWorkspaceFolders(() => { void this.refresh(); }));
 		void this.refresh();
 	}
@@ -77,6 +80,26 @@ export class PiChatRepoPickerContainer extends Disposable {
 			const editorRepo = editorResource ? findRepo(editorResource) : undefined;
 			this.body.setRepos(repos, workspaceRepos, editorRepo && !workspaceRepos.includes(editorRepo) ? editorRepo : undefined);
 		} catch { if (!this._store.isDisposed && requestId === this.requestId) { this.body.setError(); } }
+	}
+
+	private async openFolder(): Promise<void> {
+		if (this.creating || this._store.isDisposed) { return; }
+		this.creating = true;
+		this.body.setBusy(true);
+		let folder: URI | undefined;
+		try {
+			folder = (await this.dialogs.showOpenDialog({
+				title: localize('piChat.chooseChatFolder', "Choose a Folder for Chat"),
+				openLabel: localize('piChat.selectChatFolder', "Select Folder"),
+				canSelectFolders: true,
+				canSelectFiles: false,
+				canSelectMany: false,
+				availableFileSystems: ['file'],
+				defaultUri: await this.paths.userHome({ preferLocal: true }),
+			}))?.[0];
+		} catch (error) { if (!this._store.isDisposed) { this.notifications.error(error); } }
+		finally { this.creating = false; if (!this._store.isDisposed) { this.body.setBusy(false); } }
+		if (folder) { await this.createDraft({ name: basename(folder), folderUri: folder }); }
 	}
 
 	private async createDraft(repo: GitRepository): Promise<void> {
