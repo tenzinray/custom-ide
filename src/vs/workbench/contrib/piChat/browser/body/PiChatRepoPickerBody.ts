@@ -7,8 +7,10 @@ import { $, addDisposableListener, append } from '../../../../../base/browser/do
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { GitRepository } from '../../../workspace/browser/gitRepositories.js';
+import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
+import { PiChatResumeSessions } from './PiChatResumeSessions.js';
 
-/** Shared picker presentation: local search text, section captions, and identical repo rows. */
+/** Shared picker presentation: local search, resume/repository sections, and keyboard navigation. */
 export class PiChatRepoPickerBody extends Disposable {
 	readonly element: HTMLElement;
 	private readonly search: HTMLInputElement;
@@ -16,13 +18,14 @@ export class PiChatRepoPickerBody extends Disposable {
 	private readonly suggestions: HTMLElement;
 	private readonly list: HTMLElement;
 	private readonly rows = this._register(new DisposableStore());
+	private readonly resumeSessions: PiChatResumeSessions;
 	private repos: readonly GitRepository[] = [];
 	private workspaceRepos: readonly GitRepository[] = [];
 	private editorRepo: GitRepository | undefined;
 	private busy = false;
 	private buttons: HTMLButtonElement[] = [];
 
-	constructor(parent: HTMLElement, private readonly onSelect: (repo: GitRepository) => void, onOpenFolder: () => void) {
+	constructor(parent: HTMLElement, private readonly onSelect: (repo: GitRepository) => void, onOpenFolder: () => void, onResume: (session: PiChatSessionSummary) => void = () => {}, onLoadMoreSessions: () => void = () => {}) {
 		super();
 		this.element = append(parent, $('.pi-chat-repo-body'));
 		this.search = append(this.element, $('input.pi-chat-repo-search', {
@@ -30,6 +33,7 @@ export class PiChatRepoPickerBody extends Disposable {
 			'aria-label': localize('piChat.searchReposLabel', "Search repositories"),
 		})) as HTMLInputElement;
 		const results = append(this.element, $('.pi-chat-repo-results'));
+		this.resumeSessions = this._register(new PiChatResumeSessions(results, onResume, onLoadMoreSessions));
 		this.suggestions = append(results, $('.pi-chat-repo-suggestions'));
 		this.list = append(results, $('.pi-chat-repo-list'));
 		this.list.textContent = localize('piChat.findingRepos', "Finding repositories...");
@@ -37,17 +41,18 @@ export class PiChatRepoPickerBody extends Disposable {
 		this._register(addDisposableListener(this.openFolder, 'click', onOpenFolder));
 		this._register(addDisposableListener(this.search, 'input', () => this.render()));
 		this._register(addDisposableListener(this.search, 'keydown', event => {
-			const first = this.buttons.find(button => !button.disabled);
+			const buttons = this.getNavigationButtons();
+			const first = buttons[0];
 			if (event.key === 'Enter') { event.preventDefault(); first?.click(); }
 			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 				event.preventDefault();
 				event.stopPropagation();
-				(event.key === 'ArrowDown' ? first : this.buttons.findLast(button => !button.disabled))?.focus();
+				(event.key === 'ArrowDown' ? first : buttons.at(-1))?.focus();
 			}
 		}));
 		this._register(addDisposableListener(this.element, 'keydown', event => {
 			if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') { return; }
-			const buttons = this.buttons.filter(button => !button.disabled);
+			const buttons = this.getNavigationButtons();
 			const index = buttons.indexOf(event.target as HTMLButtonElement);
 			if (index < 0) { return; }
 			event.preventDefault();
@@ -81,9 +86,17 @@ export class PiChatRepoPickerBody extends Disposable {
 		this.element.setAttribute('aria-busy', String(busy));
 		this.openFolder.disabled = busy;
 		for (const button of this.buttons) { button.disabled = busy; }
+		this.resumeSessions.render(this.search.value.trim().toLocaleLowerCase(), busy);
 	}
 
+	setSessions(sessions: readonly PiChatSessionSummary[], hasMore: boolean): void { this.resumeSessions.setSessions(sessions, hasMore); }
+	setSessionsLoading(loading: boolean): void { this.resumeSessions.setLoading(loading); }
+
 	focus(): void { this.search.focus(); }
+
+	private getNavigationButtons(): HTMLButtonElement[] {
+		return [...this.resumeSessions.navigationButtons, ...this.buttons].filter(button => !button.disabled);
+	}
 
 	private render(): void {
 		this.rows.clear();
@@ -91,6 +104,7 @@ export class PiChatRepoPickerBody extends Disposable {
 		this.suggestions.replaceChildren();
 		this.list.replaceChildren();
 		const query = this.search.value.trim().toLocaleLowerCase();
+		this.resumeSessions.render(query, this.busy);
 		const matches = (repo: GitRepository) => repo.name.toLocaleLowerCase().includes(query);
 		this.renderSection(this.suggestions, localize('piChat.workspaceRepos', "Current workspace"), this.workspaceRepos.filter(matches), true);
 		this.renderSection(this.suggestions, localize('piChat.editorRepo', "Active editor"), this.editorRepo && matches(this.editorRepo) ? [this.editorRepo] : []);

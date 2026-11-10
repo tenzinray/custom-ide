@@ -11,6 +11,9 @@ import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 
 /** Lists session metadata once, then reads JSONL only for the visible page. */
 export class PiChatSessionListService {
+	static readonly initialLimit = 3;
+	static readonly pageSize = 5;
+
 	private indexedFiles: Promise<IFileStatWithMetadata[]> | undefined;
 	private indexedAt = 0;
 	private readonly summaries = new Map<string, { mtime: number; size: number; summary: PiChatSessionSummary | undefined }>();

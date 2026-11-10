@@ -21,13 +21,18 @@ import { PiChatCreatedSession } from '../common/pi-chat-run-types.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
 import { PiChatInputCacheService } from './PiChatInputCacheService.js';
+import { PiChatSessionListService } from './PiChatSessionListService.js';
 import { IPiChatSelectionService } from './PiChatSelectionService.js';
 import { PiChatRepoPickerBody } from './body/PiChatRepoPickerBody.js';
 
-/** One new-chat flow for the popup and inline empty state: discovery, draft creation, and selection. */
+/** Shared popup/empty-state coordinator for recent-session paging, repository discovery, and chat selection. */
 export class PiChatRepoPickerContainer extends Disposable {
 	private readonly body: PiChatRepoPickerBody;
 	private readonly inputCache: PiChatInputCacheService;
+	private readonly sessionListService: PiChatSessionListService;
+	private sessionLimit = PiChatSessionListService.initialLimit;
+	private sessionRequestId = 0;
+	private loadingSessions = false;
 	private requestId = 0;
 	private creating = false;
 
@@ -45,7 +50,14 @@ export class PiChatRepoPickerContainer extends Disposable {
 	) {
 		super();
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
-		this.body = this._register(new PiChatRepoPickerBody(parent, repo => { void this.createDraft(repo); }, () => { void this.openFolder(); }));
+		this.sessionListService = instantiationService.createInstance(PiChatSessionListService);
+		this.body = this._register(new PiChatRepoPickerBody(parent, repo => { void this.createDraft(repo); }, () => { void this.openFolder(); },
+			session => { if (!this.creating) { this.selectSession(session); } },
+			() => {
+				if (this.loadingSessions || this.creating) { return; }
+				this.sessionLimit += PiChatSessionListService.pageSize;
+				void this.refreshSessions();
+			}));
 		this._register(workspace.onDidChangeWorkspaceFolders(() => { void this.refresh(); }));
 		void this.refresh();
 	}
@@ -53,6 +65,38 @@ export class PiChatRepoPickerContainer extends Disposable {
 	focus(): void { this.body.focus(); }
 
 	async refresh(): Promise<void> {
+		await Promise.all([this.refreshSessions(), this.refreshRepos()]);
+	}
+
+	private async refreshSessions(): Promise<void> {
+		const requestId = ++this.sessionRequestId;
+		this.loadingSessions = true;
+		this.body.setSessionsLoading(true);
+		try {
+			const { sessions, hasMore } = await this.sessionListService.listSessions(this.sessionLimit);
+			if (this._store.isDisposed || requestId !== this.sessionRequestId) { return; }
+			this.body.setSessions(sessions, hasMore);
+		} catch (error) {
+			if (!this._store.isDisposed && requestId === this.sessionRequestId) {
+				this.body.setSessions([], false);
+				this.notifications.error(error);
+			}
+		} finally {
+			if (!this._store.isDisposed && requestId === this.sessionRequestId) {
+				this.loadingSessions = false;
+				this.body.setSessionsLoading(false);
+			}
+		}
+	}
+
+	private selectSession(session: PiChatSessionSummary): void {
+		if (this._store.isDisposed) { return; }
+		this.selection.selectSession(session);
+		this.onCreated?.();
+		void this.views.openView(PiChatConversationView.ID, true).catch(error => this.notifications.error(error));
+	}
+
+	private async refreshRepos(): Promise<void> {
 		const requestId = ++this.requestId;
 		const workspaceFolders = this.workspace.getWorkspace().folders.map(folder => folder.uri);
 		const editorResource = this.editors.activeEditor?.resource;
@@ -111,9 +155,7 @@ export class PiChatRepoPickerContainer extends Disposable {
 			if (!created || this._store.isDisposed) { return; }
 			const draft: PiChatSessionSummary = { id: created.id, repoName: repo.name, repoPath: repo.folderUri.fsPath, lastMessageAt: new Date().toISOString(), sessionFile: URI.file(created.sessionFile), isDraft: true };
 			this.inputCache.setDraftSession(draft);
-			this.selection.selectSession(draft);
-			this.onCreated?.();
-			void this.views.openView(PiChatConversationView.ID, true).catch(error => this.notifications.error(error));
+			this.selectSession(draft);
 		} catch (error) { if (!this._store.isDisposed) { this.notifications.error(error); } }
 		finally { this.creating = false; if (!this._store.isDisposed) { this.body.setBusy(false); } }
 	}

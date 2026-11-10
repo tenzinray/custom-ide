@@ -43,7 +43,7 @@ export class PiChatSessionsView extends ViewPane {
 	private sessions: PiChatSessionSummary[] = [];
 	private hasMore = false;
 	private draft: PiChatSessionSummary | undefined;
-	private limit = 3;
+	private limit = PiChatSessionListService.initialLimit;
 	private refreshId = 0;
 	private readonly picker = this._register(new MutableDisposable<PiChatRepoPicker>());
 	private readonly sessionListService: PiChatSessionListService;
@@ -143,7 +143,7 @@ export class PiChatSessionsView extends ViewPane {
 		renderPiChatSessionList(this.list, this.draft ? [this.draft, ...this.sessions] : this.sessions, this.limit, this.hasMore, this.selection.selectedSession?.id, this.piInstantiationService,
 			session => { this.selection.selectSession(session); void this.viewsService.openView(PiChatConversationView.ID, true); },
 			session => this.openInEditor(session),
-			() => { this.limit += 5; void this.refresh(); });
+			() => { this.limit += PiChatSessionListService.pageSize; void this.refresh(); });
 	}
 
 	private openInEditor(session: PiChatSessionSummary): void {

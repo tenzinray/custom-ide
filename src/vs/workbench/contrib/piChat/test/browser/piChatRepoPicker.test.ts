@@ -48,7 +48,7 @@ suite('Pi chat repo picker', () => {
 			captions: [...element.querySelectorAll('.pi-chat-repo-caption')].map(e => e.textContent),
 			names: [...element.querySelectorAll('.pi-chat-repo-item strong')].map(e => e.textContent),
 			classes: [...element.querySelectorAll('.pi-chat-repo-item')].map(e => e.className),
-		}, { captions: ['Current workspace', 'All repositories'], names: ['alpha', 'alpha', 'zebra'], classes: ['pi-chat-repo-item', 'pi-chat-repo-item', 'pi-chat-repo-item'] });
+		}, { captions: ['Resume Session', 'Current workspace', 'All repositories'], names: ['alpha', 'alpha', 'zebra'], classes: ['pi-chat-repo-item', 'pi-chat-repo-item', 'pi-chat-repo-item'] });
 	});
 
 	test('groups workspace and other repos under a single results scroller', () => {
@@ -74,7 +74,7 @@ suite('Pi chat repo picker', () => {
 		search.dispatchEvent(new mainWindow.Event('input'));
 		search.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter' }));
 		assert.deepStrictEqual({ captions: [...element.querySelectorAll('.pi-chat-repo-caption')].map(e => e.textContent), names: [...element.querySelectorAll('strong')].map(e => e.textContent), selected }, {
-			captions: ['All repositories'], names: ['zebra'], selected: ['zebra'],
+			captions: ['Resume Session', 'All repositories'], names: ['zebra'], selected: ['zebra'],
 		});
 	});
 
