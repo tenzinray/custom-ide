@@ -6,7 +6,7 @@
 import { $, append } from '../../../../../../../base/browser/dom.js';
 import { IManagedHover } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IListRenderer } from '../../../../../../../base/browser/ui/list/list.js';
+import { IListContextMenuEvent, IListRenderer } from '../../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
@@ -62,7 +62,7 @@ export class ProjectsList extends Disposable {
 	private height = 0;
 	private width = 0;
 
-	constructor(parent: HTMLElement, private readonly open: (entry: ProjectEntry, newWindow: boolean) => void, private readonly selectFolder: () => void,
+	constructor(parent: HTMLElement, private readonly open: (entry: ProjectEntry, newWindow: boolean) => void, private readonly selectFolder: () => void, onContextMenu: (entry: ProjectEntry, anchor: IListContextMenuEvent<ProjectEntry>['anchor']) => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
 	) {
@@ -83,6 +83,11 @@ export class ProjectsList extends Disposable {
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
 			}));
+		this._register(this.list.onContextMenu(event => {
+			if (event.element && event.element !== selectFolderRow) {
+				onContextMenu(event.element, event.anchor);
+			}
+		}));
 		this._register(this.list.onDidOpen(event => {
 			if (event.element === selectFolderRow) { this.selectFolder(); }
 			else if (event.element) { this.open(event.element, event.sideBySide); }

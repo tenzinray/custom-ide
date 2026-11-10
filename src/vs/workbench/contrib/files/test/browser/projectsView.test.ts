@@ -6,6 +6,11 @@
 import * as assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IFileDialogService, IPickAndOpenOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -38,6 +43,14 @@ suite('Explorer Projects', () => {
 		await fileService.createFolder(joinPath(root, 'not-a-repo'));
 		await fileService.createFolder(joinPath(root, 'not-a-repo', 'nested', '.git'));
 		const instantiation = workbenchInstantiationService({ fileService: () => fileService, pathService: () => new TestPathService(home) }, store);
+		let menuActions: IAction[] = [];
+		const commands: [string, string | string[]][] = [];
+		const addedFolders: IWorkspaceFolderCreationData[][] = [];
+		instantiation.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => { menuActions = delegate.getActions?.() ?? []; });
+		instantiation.stub(ICommandService, {});
+		instantiation.stub(IWorkspaceEditingService, {});
+		instantiation.stub(ICommandService, 'executeCommand', async (id: string, resource: URI | URI[]) => { commands.push([id, Array.isArray(resource) ? resource.map(uri => uri.toString()) : resource.toString()]); });
+		instantiation.stub(IWorkspaceEditingService, 'addFolders', async (folders: IWorkspaceFolderCreationData[]) => { addedFolders.push(folders); });
 		const calls: Parameters<IHostService['openWindow']>[] = [];
 		instantiation.stub(IHostService, 'openWindow', async (...args: Parameters<IHostService['openWindow']>) => { calls.push(args); });
 		const parent = append(mainWindow.document.body, $('div'));
@@ -48,8 +61,35 @@ suite('Explorer Projects', () => {
 		const search = parent.querySelector('input')!;
 		const names = () => [...parent.querySelectorAll('.explorer-project-row:not(.explorer-project-select-folder) .explorer-project-name')].map(row => row.textContent);
 		const filter = (value: string) => { search.value = value; search.dispatchEvent(new mainWindow.Event('input', { bubbles: true })); };
-		return { projects, parent, search, names, filter, calls, root, workspaceDirectory, fileService, instantiation };
+		return { projects, parent, search, names, filter, calls, root, workspaceDirectory, fileService, instantiation, getMenuActions: () => menuActions, commands, addedFolders, home };
 	}
+
+	test('right-click opens project actions without opening the project', async () => {
+		const { parent, calls, root, getMenuActions, commands, addedFolders } = await setup();
+		parent.querySelector('.explorer-project-row')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, button: 2 }));
+		const actions = getMenuActions();
+		for (const action of actions) { await action.run(); }
+		const uri = joinPath(root, 'alpha').toString();
+		assert.deepStrictEqual({ actions: actions.map(action => action.id), calls, commands, addedFolders: addedFolders.map(folders => folders.map(folder => folder.uri.toString())) }, {
+			actions: ['projects.addPathToChat', 'projects.addToWorkspace', 'projects.showInFinder'], calls: [],
+			commands: [['piChat.attachFiles', [uri]], ['revealFileInOS', uri]], addedFolders: [[uri]],
+		});
+	});
+
+	test('does not offer saved workspace files as workspace folders', async () => {
+		const { projects, parent, workspaceDirectory, fileService, getMenuActions } = await setup();
+		await fileService.writeFile(joinPath(workspaceDirectory, 'main.code-workspace'), VSBuffer.fromString('{"folders":[]}'));
+		await projects.refresh();
+		parent.querySelector('.explorer-project-row')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, button: 2 }));
+		assert.strictEqual(getMenuActions().find(action => action.id === 'projects.addToWorkspace')?.enabled, false);
+	});
+
+	test('includes the user Pi repository outside the usual project directory', async () => {
+		const { projects, names, fileService, home } = await setup();
+		await fileService.createFolder(joinPath(home, '.pi', '.git'));
+		await projects.refresh();
+		assert.deepStrictEqual(names(), ['.pi', 'alpha', 'zebra']);
+	});
 
 	test('lists direct repositories alphabetically, including Git worktrees', async () => {
 		const { names } = await setup();

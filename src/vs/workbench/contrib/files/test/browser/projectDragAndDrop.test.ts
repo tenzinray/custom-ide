@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
+import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
+import { PiChatPromptEditor } from '../../../piChat/browser/footer/PiChatPromptEditor.js';
 import { ElementsDragAndDropData, ExternalElementsDragAndDropData, NativeDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,6 +30,22 @@ suite('Files - Project Drag and Drop', () => {
 		assert.deepStrictEqual([
 			source.getDragURI(project), source.getDragURI(workspace), source.getDragURI('select-folder'), source.onDragOver(),
 		], [project.folderUri.toString(), null, null, false]);
+	});
+
+	test('project drags use the standard resource payload and insert the full path into Pi chat', () => {
+		const source = store.add(new ProjectsDragAndDrop());
+		const dataTransfer = new DataTransfer();
+		const event = new DragEvent('dragstart', { dataTransfer });
+		source.onDragStart(new ElementsDragAndDropData([project]), event);
+		const resources = extractEditorsDropData(event).flatMap(editor => editor.resource ? [editor.resource] : []);
+		const host = document.body.appendChild(document.createElement('div'));
+		try {
+			const prompt = store.add(new PiChatPromptEditor(host, false, 'Type here...'));
+			prompt.insertFiles(resources);
+			assert.deepStrictEqual({ payload: dataTransfer.getData(DataTransfers.RESOURCES), text: prompt.value }, {
+				payload: JSON.stringify([project.folderUri.toString()]), text: `[project](${project.folderUri.toString()}) `,
+			});
+		} finally { host.remove(); }
 	});
 
 	test('only external project folder entries are recognized', () => {

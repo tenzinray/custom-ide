@@ -184,6 +184,7 @@ suite('Pi chat repo picker', () => {
 		await files.createFolder(joinPath(root, 'alpha', '.git'));
 		await files.createFolder(joinPath(root, 'zebra', '.git'));
 		await files.createFolder(joinPath(root, 'workouts'));
+		await files.createFolder(joinPath(home, '.pi', '.git'));
 		const instantiation = workbenchInstantiationService({ fileService: () => files, pathService: () => new TestPathService(home) }, store);
 		instantiation.stub(IWorkspaceContextService, 'getWorkspace', () => new Workspace('picker-test', [toWorkspaceFolder(joinPath(root, 'alpha')), toWorkspaceFolder(joinPath(root, 'workouts'))], false, null, () => false));
 		let selected: PiChatSessionSummary | undefined;
@@ -200,6 +201,7 @@ suite('Pi chat repo picker', () => {
 		const picker = store.add(instantiation.createInstance(PiChatRepoPickerContainer, element, () => { closed++; }));
 		await picker.refresh();
 		assert.deepStrictEqual([...element.querySelectorAll('.pi-chat-repo-suggestions strong')].map(e => e.textContent), ['alpha', 'workouts']);
+		assert.ok([...element.querySelectorAll('.pi-chat-repo-item')].some(row => row.textContent?.includes('.pi')));
 		const first = element.querySelector<HTMLButtonElement>('.pi-chat-repo-item')!;
 		first.click();
 		first.click();

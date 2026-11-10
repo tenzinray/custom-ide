@@ -21,6 +21,7 @@ import { listGitRepositories } from '../../../../workspace/browser/gitRepositori
 import { ProjectEntry } from './project-entry.js';
 import { ProjectsSearch } from './header/ProjectsSearch.js';
 import { ProjectsList } from './body/ProjectsList.js';
+import { ProjectsContextMenuService } from './ProjectsContextMenuService.js';
 
 /** Owns repository/workspace discovery, filtering, refresh, and normal workbench opening. */
 export class ProjectsContainer extends Disposable {
@@ -45,7 +46,8 @@ export class ProjectsContainer extends Disposable {
 		super();
 		const shell = append(parent, $('.explorer-projects'));
 		this.search = this._register(new ProjectsSearch(shell, () => this.body.focusFirst(), () => this.body.openFirst()));
-		this.body = this._register(instantiationService.createInstance(ProjectsList, shell, (repo, newWindow) => { void this.open(repo, newWindow); }, () => { void this.selectFolder(); }));
+		const contextMenu = instantiationService.createInstance(ProjectsContextMenuService);
+		this.body = this._register(instantiationService.createInstance(ProjectsList, shell, (repo, newWindow) => { void this.open(repo, newWindow); }, () => { void this.selectFolder(); }, (entry, anchor) => contextMenu.show(entry, anchor)));
 		this._register(this.search.input.onDidChange(() => this.render()));
 		this._register(workspace.onDidChangeWorkspaceFolders(() => this.render()));
 		const home = pathService.userHome({ preferLocal: true });

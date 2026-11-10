@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from '../../../../../../base/browser/dnd.js';
+import { DataTransfers, IDragAndDropData } from '../../../../../../base/browser/dnd.js';
 import { IListDragAndDrop } from '../../../../../../base/browser/ui/list/list.js';
 import { ExternalElementsDragAndDropData } from '../../../../../../base/browser/ui/list/listView.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +18,17 @@ export class ProjectsDragAndDrop implements IListDragAndDrop<ProjectEntry | stri
 
 	getDragLabel(entries: (ProjectEntry | string)[]): string | undefined {
 		return entries.length === 1 && typeof entries[0] !== 'string' ? entries[0].name : undefined;
+	}
+
+	onDragStart(data: IDragAndDropData, event: DragEvent): void {
+		const resources = (data.getData() as (ProjectEntry | string)[]).flatMap(entry => {
+			const uri = this.getDragURI(entry);
+			return uri ? [uri] : [];
+		});
+		if (resources.length && event.dataTransfer) {
+			// Use the standard workbench resource payload so Pi chat reuses file-path insertion.
+			event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(resources));
+		}
 	}
 
 	onDragOver(): boolean { return false; }

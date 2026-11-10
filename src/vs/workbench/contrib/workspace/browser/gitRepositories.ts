@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { joinPath } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { getProjectsDirectory } from '../../../../platform/workspaces/common/projectDirectories.js';
 
 export interface GitRepository {
@@ -13,10 +13,14 @@ export interface GitRepository {
 	readonly folderUri: URI;
 }
 
-/** Direct Git repositories in the ~/Documents/VSCode folder used by Pi UI. */
+/** Shared project choices: direct ~/Documents/VSCode repositories and the ~/.pi repository. */
 export async function listGitRepositories(userHome: URI, fileService: IFileService): Promise<GitRepository[]> {
-	const directory = await fileService.resolve(getProjectsDirectory(userHome));
-	const repos = await Promise.all((directory.children ?? []).filter(child => child.isDirectory).map(async child =>
-		await fileService.exists(joinPath(child.resource, '.git')) ? { name: child.name, folderUri: child.resource } : undefined));
+	const directory = await fileService.resolve(getProjectsDirectory(userHome)).catch(error => {
+		if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) { throw error; }
+		return undefined;
+	});
+	const candidates = [...(directory?.children ?? []).filter(child => child.isDirectory).map(child => child.resource), joinPath(userHome, '.pi')];
+	const repos = await Promise.all(candidates.map(async folderUri =>
+		await fileService.exists(joinPath(folderUri, '.git')) ? { name: basename(folderUri), folderUri } : undefined));
 	return repos.filter(repo => repo !== undefined).sort((a, b) => a.name.localeCompare(b.name));
 }
