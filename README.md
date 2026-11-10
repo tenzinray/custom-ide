@@ -1,3 +1,47 @@
+## Local development: start / stop
+
+### Start the watcher
+
+```bash
+cd /Users/ascend/Documents/VSCode/custom-ide
+pnpm run watchd
+```
+
+This attaches to the existing watcher instead of starting a duplicate. **Ctrl+C** detaches and leaves it running; **Ctrl+D** stops it. Wait for the initial compilation/transpilation to finish before starting the app.
+
+### Stop or restart the watcher (from another terminal)
+
+```bash
+cd /Users/ascend/Documents/VSCode/custom-ide
+pnpm run kill-watchd
+```
+
+```bash
+cd /Users/ascend/Documents/VSCode/custom-ide
+pnpm run restart-watchd
+```
+
+### Start the app
+
+```bash
+cd /Users/ascend/Documents/VSCode/custom-ide
+mkdir -p logs
+node scripts/code-oss-launcher/launch.ts --repo . --session-title "Custom IDE" > logs/dev-app.json
+```
+
+The app runs in the background with an isolated profile; its launch details are saved in `logs/dev-app.json`. Stop it before running this command again. After source changes compile, restart the app to load them.
+
+### Stop the app
+
+```bash
+cd /Users/ascend/Documents/VSCode/custom-ide
+node scripts/code-oss-launcher/cleanup/cleanup.ts "$(node -p "require('./logs/dev-app.json').runDir")"
+```
+
+More launch options: [managed launcher README](scripts/code-oss-launcher/README.md).
+
+---
+
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)

@@ -7,9 +7,12 @@ import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../platform/path/common/pathService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 
-/** Lists session metadata once, then reads JSONL only for the visible page. */
+const pinnedSessionsKey = 'piChat.pinnedSessions';
+
+/** Owns persisted session pins and paged metadata reads for recent conversations. */
 export class PiChatSessionListService {
 	static readonly initialLimit = 3;
 	static readonly pageSize = 5;
@@ -21,7 +24,20 @@ export class PiChatSessionListService {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
+		@IStorageService private readonly storage: IStorageService,
 	) { }
+
+	getPinnedIds(): ReadonlySet<string> {
+		const saved = this.storage.getObject<string[]>(pinnedSessionsKey, StorageScope.PROFILE, []);
+		return new Set(Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : []);
+	}
+
+	setPinned(id: string, pinned: boolean): void {
+		const ids = new Set(this.getPinnedIds());
+		if (pinned) { ids.add(id); }
+		else { ids.delete(id); }
+		this.storage.store(pinnedSessionsKey, [...ids], StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
 
 	invalidate(): void {
 		this.indexedFiles = undefined;
@@ -29,13 +45,14 @@ export class PiChatSessionListService {
 
 	async listSessions(limit: number): Promise<{ sessions: PiChatSessionSummary[]; hasMore: boolean }> {
 		const files = await this.getFiles();
+		const pinnedIds = this.getPinnedIds();
 		const sessions: PiChatSessionSummary[] = [];
 		let index = 0;
 		while (sessions.length < limit && index < files.length) {
 			const batch = files.slice(index, index + limit - sessions.length);
 			index += batch.length;
 			const page = await Promise.all(batch.map(file => this.getSummary(file)));
-			sessions.push(...page.filter(summary => summary !== undefined));
+			sessions.push(...page.filter(summary => summary !== undefined && !pinnedIds.has(summary.id)));
 		}
 		return { sessions: sessions.sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)), hasMore: index < files.length };
 	}

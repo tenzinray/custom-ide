@@ -6,8 +6,8 @@
 import * as fs from 'node:fs';
 
 /**
- * Prepares the launched profile's settings for automation: the simple file dialog, which unlike
- * the native one can be driven over CDP, and optionally the session title in the window title.
+ * Prepares the launched profile's settings: the automation-friendly simple file dialog,
+ * auto save unless already configured, and optionally the session title in the window title.
  * A settings file that is a link to the source profile's is replaced by a copy first.
  */
 export function updateLaunchSettings(settingsFile: string, sessionTitle: string | undefined, sourceSettingsFile: string): void {
@@ -39,6 +39,9 @@ export function updateLaunchSettings(settingsFile: string, sessionTitle: string 
 	}
 
 	text = setJsoncProperty(text, 'files.simpleDialog.enable', true, settingsFile);
+	if (findRootProperties(maskComments(text), 'files.autoSave', settingsFile).length === 0) {
+		text = setJsoncProperty(text, 'files.autoSave', 'afterDelay', settingsFile);
+	}
 	if (title) {
 		text = setJsoncProperty(
 			text,

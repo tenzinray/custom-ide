@@ -41,6 +41,7 @@ export class PiChatSessionsView extends ViewPane {
 	private list: HTMLElement | undefined;
 	private shell: HTMLElement | undefined;
 	private sessions: PiChatSessionSummary[] = [];
+	private pinnedSessions: PiChatSessionSummary[] = [];
 	private hasMore = false;
 	private draft: PiChatSessionSummary | undefined;
 	private limit = PiChatSessionListService.initialLimit;
@@ -74,7 +75,7 @@ export class PiChatSessionsView extends ViewPane {
 		this._register(selection.onDidSelectSession(session => {
 			if (!session) { this.renderSessions(); return; }
 			if (session.isDraft) { this.draft = session; }
-			if (!session.isDraft && (this.draft?.id === session.id || this.sessions.some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt))) {
+			if (!session.isDraft && (this.draft?.id === session.id || [...this.sessions, ...this.pinnedSessions].some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt))) {
 				this.draft = undefined;
 				this.inputCache.setDraftSession(undefined);
 				this.sessionListService.invalidate();
@@ -126,11 +127,15 @@ export class PiChatSessionsView extends ViewPane {
 	private async refresh(): Promise<void> {
 		if (!this.list) { return; }
 		const requestId = ++this.refreshId;
-		if (!this.sessions.length) { this.list.textContent = localize('piChat.loading', "Loading conversations..."); }
+		if (!this.sessions.length && !this.pinnedSessions.length && !this.draft) { this.list.textContent = localize('piChat.loading', "Loading conversations..."); }
 		try {
-			const { sessions, hasMore } = await this.sessionListService.listSessions(this.limit);
+			const [{ sessions, hasMore }, pinned] = await Promise.all([
+				this.sessionListService.listSessions(this.limit),
+				Promise.all([...this.sessionListService.getPinnedIds()].map(id => id === this.draft?.id ? this.draft : this.sessionListService.findSession(id))),
+			]);
 			if (requestId !== this.refreshId || this._store.isDisposed) { return; }
 			this.sessions = sessions;
+			this.pinnedSessions = pinned.filter(session => session !== undefined);
 			this.hasMore = hasMore;
 			this.renderSessions();
 		} catch {
@@ -140,10 +145,15 @@ export class PiChatSessionsView extends ViewPane {
 
 	private renderSessions(): void {
 		if (!this.list) { return; }
-		renderPiChatSessionList(this.list, this.draft ? [this.draft, ...this.sessions] : this.sessions, this.limit, this.hasMore, this.selection.selectedSession?.id, this.piInstantiationService,
+		const sessions = [...this.pinnedSessions, ...this.sessions].filter(session => session.id !== this.draft?.id);
+		renderPiChatSessionList(this.list, this.draft ? [this.draft, ...sessions] : sessions, this.sessionListService.getPinnedIds(), this.hasMore, this.selection.selectedSession?.id, this.piInstantiationService,
 			session => { this.selection.selectSession(session); void this.viewsService.openView(PiChatConversationView.ID, true); },
 			session => this.openInEditor(session),
-			() => { this.limit += PiChatSessionListService.pageSize; void this.refresh(); });
+			() => { this.limit += PiChatSessionListService.pageSize; void this.refresh(); },
+			session => {
+				this.sessionListService.setPinned(session.id, !this.sessionListService.getPinnedIds().has(session.id));
+				void this.refresh();
+			});
 	}
 
 	private openInEditor(session: PiChatSessionSummary): void {
