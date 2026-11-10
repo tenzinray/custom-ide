@@ -26,17 +26,14 @@ pnpm run restart-watchd
 ```bash
 cd /Users/ascend/Documents/VSCode/custom-ide
 mkdir -p logs
-node scripts/code-oss-launcher/launch.ts --repo . --session-title "Custom IDE" > logs/dev-app.json
+node scripts/code-oss-launcher/launch.ts --repo . --persistent-profile > logs/dev-app.json
 ```
 
-The app runs in the background with an isolated profile; its launch details are saved in `logs/dev-app.json`. Stop it before running this command again. After source changes compile, restart the app to load them.
+The app runs in the background with its permanent development profile; settings and installed extensions survive later launches. Its launch details are saved in `logs/dev-app.json`. Stop it before running this command again. If a migration from an older temporary profile is queued, quit that source app completely first. After source changes compile, restart the app to load them. Agent/UI tests can still use isolated profiles by omitting `--persistent-profile`.
 
 ### Stop the app
 
-```bash
-cd /Users/ascend/Documents/VSCode/custom-ide
-node scripts/code-oss-launcher/cleanup/cleanup.ts "$(node -p "require('./logs/dev-app.json').runDir")"
-```
+Use **Cmd+Q** in the development app. Closing only its last window may leave it running. The managed cleanup command intentionally refuses to delete a permanent profile.
 
 More launch options: [managed launcher README](scripts/code-oss-launcher/README.md).
 

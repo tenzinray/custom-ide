@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { suite, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { retryOnTransientSignError } from '../../darwin/sign.ts';
 
 function codesignError(stderr: string): Error {
@@ -28,6 +30,17 @@ async function sign(failures: Error[], maxAttempts: number): Promise<{ attempts:
 }
 
 suite('darwin sign', () => {
+	for (const identity of ['', 'iPhone Distribution: Example']) {
+		test(`local signing rejects ${identity ? 'a mobile certificate' : 'a missing identity'} before modifying an app`, () => {
+			const result = spawnSync(process.execPath, [fileURLToPath(new URL('../../darwin/sign.ts', import.meta.url)), '..', '--local'], {
+				env: { ...process.env, CODESIGN_IDENTITY: identity, AGENT_TEMPDIRECTORY: '' },
+				encoding: 'utf8',
+			});
+			assert.equal(result.status, 1);
+			assert.match(result.stderr, /Local signing requires CODESIGN_IDENTITY set to a Developer ID Application certificate name/);
+		});
+	}
+
 	test('retries keychain and timestamp service errors until signing succeeds', async () => {
 		assert.deepStrictEqual(await sign([
 			codesignError('The specified item could not be found in the keychain.'),

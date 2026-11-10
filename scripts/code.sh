@@ -48,8 +48,8 @@ function code() {
 		DISABLE_TEST_EXTENSION=""
 	fi
 
-	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
+	# Launch Code. Copilot's source stays in the checkout but is not activated in this fork.
+	exec "$CODE" . --disable-extension=GitHub.copilot-chat $DISABLE_TEST_EXTENSION "$@"
 }
 
 function code-wsl()

@@ -35,11 +35,11 @@ function getKeychainPath(tempDir: string): string {
  * Usage descriptions shown by macOS when the app requests access to protected resources.
  */
 const infoPlistUsageDescriptions: Record<string, string> = {
-	NSAppleEventsUsageDescription: 'An application in Visual Studio Code wants to use AppleScript.',
-	NSMicrophoneUsageDescription: 'An application in Visual Studio Code wants to use the Microphone.',
+	NSAppleEventsUsageDescription: `An application in ${product.nameLong} wants to use AppleScript.`,
+	NSMicrophoneUsageDescription: `An application in ${product.nameLong} wants to use the Microphone.`,
 	NSSpeechRecognitionUsageDescription: appleSpeechUsageDescription,
-	NSCameraUsageDescription: 'An application in Visual Studio Code wants to use the Camera.',
-	NSAudioCaptureUsageDescription: 'An application in Visual Studio Code wants to use Audio Capture.',
+	NSCameraUsageDescription: `An application in ${product.nameLong} wants to use the Camera.`,
+	NSAudioCaptureUsageDescription: `An application in ${product.nameLong} wants to use Audio Capture.`,
 	NSLocalNetworkUsageDescription: 'The app uses your local network for DNS resolution and to connect to locally running services.',
 };
 
@@ -80,12 +80,17 @@ async function main(buildDir?: string): Promise<void> {
 	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 	const arch = process.env['VSCODE_ARCH'];
 	const identity = process.env['CODESIGN_IDENTITY'];
+	// Local builds use the user's normal keychain, not the CI buildagent keychain.
+	const local = process.argv.includes('--local');
+	if (local && !identity?.startsWith('Developer ID Application:')) {
+		throw new Error('Local signing requires CODESIGN_IDENTITY set to a Developer ID Application certificate name. Run: security find-identity -v -p codesigning');
+	}
 
 	if (!buildDir) {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
 	}
 
-	if (!tempDir) {
+	if (!tempDir && !local) {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
@@ -106,7 +111,7 @@ async function main(buildDir?: string): Promise<void> {
 		}),
 		preAutoEntitlements: false,
 		preEmbedProvisioningProfile: false,
-		keychain: getKeychainPath(tempDir),
+		keychain: local ? process.env['CODESIGN_KEYCHAIN'] : tempDir ? getKeychainPath(tempDir) : undefined,
 		version: getElectronVersion(root).electronVersion,
 		identity,
 	};
