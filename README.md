@@ -37,6 +37,10 @@ Use **Cmd+Q** in the development app. Closing only its last window may leave it 
 
 More launch options: [managed launcher README](scripts/code-oss-launcher/README.md).
 
+### Update the installed Pide app
+
+Follow the [Pide update and rollback instructions](build/darwin/pide-build.md#update-installed-pide). Build and sign first, then quit Pide and replace only the app bundle—not its profiles, settings or installed extensions.
+
 ---
 
 # Visual Studio Code - Open Source ("Code - OSS")
