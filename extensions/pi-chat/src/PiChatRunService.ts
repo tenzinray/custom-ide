@@ -24,6 +24,18 @@ interface Run {
 
 const runs = new Map<string, Run>();
 const opening = new Map<string, Promise<Run>>();
+let accountChanging = false;
+
+/** Account selection cannot interrupt an active response or a session opening for a turn. */
+export function isPiChatRunning(): boolean {
+	return opening.size > 0 || [...runs.values()].some(run => run.running);
+}
+
+export async function withPiChatAccountChange(change: () => Promise<void>): Promise<void> {
+	if (accountChanging || isPiChatRunning()) { throw new Error(vscode.l10n.t('Wait for all Pi responses to finish before changing accounts.')); }
+	accountChanging = true;
+	try { await change(); } finally { accountChanging = false; }
+}
 
 /** Reuse Pi's exact estimate while this session is already open for a turn. */
 export function getPiChatActiveContextUsage(id: string): ContextUsage | undefined {
@@ -156,7 +168,9 @@ function forward(event: AgentSessionEvent, run: Run, turn: { index: number; inpu
 export async function startPiChatTurn(id: string, file: string, cwd: string, text: string, modelName?: string): Promise<void> {
 	checkWorkspaceTrust();
 	if (typeof text !== 'string' || !text.trim() || text.length > 20_000) { throw new Error('Enter a message under 20,000 characters.'); }
+	if (accountChanging) { throw new Error(vscode.l10n.t('Wait for the account change to finish before sending a message.')); }
 	const run = await getRun(id, file, cwd);
+	if (accountChanging) { throw new Error(vscode.l10n.t('Wait for the account change to finish before sending a message.')); }
 	if (run.running) { throw new Error('This Pi session already has a running turn.'); }
 	run.events.length = 0;
 	run.baseIndex = 0;

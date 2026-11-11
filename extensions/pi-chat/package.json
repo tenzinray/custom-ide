@@ -8,7 +8,7 @@
   "engines": { "vscode": "^1.100.0" },
   "main": "./bootstrap.cjs",
   "extensionKind": ["ui"],
-  "activationEvents": ["onCommand:piChat.listen", "onCommand:piChat.startTurn", "onCommand:piChat.createSession", "onCommand:piChat.pollTurn", "onCommand:piChat.restoreDraft", "onCommand:piChat.openAILimits", "onCommand:piChat.contextUsage"],
+  "activationEvents": ["onCommand:piChat.listen", "onCommand:piChat.startTurn", "onCommand:piChat.createSession", "onCommand:piChat.pollTurn", "onCommand:piChat.restoreDraft", "onCommand:piChat.openAILimits", "onCommand:piChat.contextUsage", "onCommand:piChat.openAIAccounts", "onCommand:piChat.changeOpenAIAccount"],
   "dependencies": { "@earendil-works/pi-coding-agent": "0.84.1", "@earendil-works/pi-ai": "0.84.4" },
   "contributes": {
     "commands": [{ "command": "piChat.listen", "title": "Pi Chat: Listen to Response" }],

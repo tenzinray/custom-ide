@@ -8,6 +8,7 @@ import { registerBunOAuthFlows } from '@earendil-works/pi-ai/bun-oauth';
 import { spawn, execFile, ChildProcessWithoutNullStreams } from 'node:child_process';
 import { join } from 'node:path';
 import type { PiChatPlaybackStatus } from '../../../src/vs/workbench/contrib/piChat/common/pi-chat-playback-types.js';
+import { changePiChatOpenAIAccount, getPiChatOpenAIAccounts } from './PiChatOpenAIAccountService.js';
 import { fetchPiChatOpenAILimits } from './PiChatOpenAILimitsService.js';
 import { getPiChatContextUsage } from './PiChatContextUsageService.js';
 import { cancelPiChatPrompt, createPiChatSession, disposePiChatRuns, pollPiChatTurn, queuePiChatPrompt, restorePiChatDraft, sendPiChatPromptNow, startPiChatTurn, stopPiChatTurn } from './PiChatRunService.js';
@@ -79,6 +80,8 @@ function play(audio: string): Promise<void> {
 export function activate(context: vscode.ExtensionContext): void {
 	// The same bundled OAuth loaders Pi uses for its standalone binary keep flow imports inside our ESM bundle.
 	registerBunOAuthFlows();
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.openAIAccounts', getPiChatOpenAIAccounts));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.changeOpenAIAccount', changePiChatOpenAIAccount));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.createSession', createPiChatSession));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.restoreDraft', restorePiChatDraft));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.startTurn', startPiChatTurn));

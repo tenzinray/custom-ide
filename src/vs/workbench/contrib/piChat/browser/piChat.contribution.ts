@@ -27,6 +27,7 @@ import { PiChatSessionEditorInput } from './PiChatSessionEditorInput.js';
 import { PiChatSessionsView } from './PiChatSessionsView.js';
 import { PiChatSessionListService } from './PiChatSessionListService.js';
 import { IPiChatSelectionService, PiChatSelectionService } from './PiChatSelectionService.js';
+import { IPiChatOpenAIAccountService, PiChatOpenAIAccountService } from './PiChatOpenAIAccountService.js';
 import { IPiChatOpenAILimitsService, PiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
 
 registerAction2(class extends Action2 {
@@ -48,6 +49,7 @@ registerAction2(class extends Action2 {
 
 registerSingleton(IPiChatSelectionService, PiChatSelectionService, InstantiationType.Delayed);
 registerSingleton(IPiChatOpenAILimitsService, PiChatOpenAILimitsService, InstantiationType.Delayed);
+registerSingleton(IPiChatOpenAIAccountService, PiChatOpenAIAccountService, InstantiationType.Delayed);
 
 const containerId = 'workbench.view.piChat';
 const icon = registerIcon('pi-chat-view-icon', Codicon.commentDiscussion, localize('piChat.icon', "Icon for Pi conversations."));

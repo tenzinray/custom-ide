@@ -21,6 +21,7 @@ export interface IPiChatOpenAILimitsService {
 	readonly error: string | undefined;
 	load(): Promise<void>;
 	refresh(): Promise<void>;
+	invalidate(): void;
 }
 
 export class PiChatOpenAILimitsService extends Disposable implements IPiChatOpenAILimitsService {
@@ -29,6 +30,7 @@ export class PiChatOpenAILimitsService extends Disposable implements IPiChatOpen
 	readonly onDidChange = this.change.event;
 	private pending: Promise<void> | undefined;
 	private loaded = false;
+	private generation = 0;
 	private lastAttemptAt = 0;
 	limits: PiChatOpenAILimits | undefined;
 	refreshing = false;
@@ -43,18 +45,31 @@ export class PiChatOpenAILimitsService extends Disposable implements IPiChatOpen
 		return (this.loaded && !resetPassed) || now - this.lastAttemptAt < 60_000 ? Promise.resolve() : this.refresh();
 	}
 
+	invalidate(): void {
+		this.generation++;
+		this.pending = undefined;
+		this.limits = undefined;
+		this.loaded = false;
+		this.lastAttemptAt = 0;
+		void this.refresh();
+	}
+
 	refresh(): Promise<void> {
 		if (this.pending) { return this.pending; }
+		const generation = this.generation;
 		this.refreshing = true;
 		this.lastAttemptAt = Date.now();
 		this.error = undefined;
 		this.change.fire();
 		this.pending = this.commands.executeCommand<PiChatOpenAILimits | undefined>('piChat.openAILimits').then(limits => {
+			if (generation !== this.generation) { return; }
 			this.limits = limits;
 			this.loaded = true;
 		}, () => {
+			if (generation !== this.generation) { return; }
 			this.error = localize('piChat.limitsError', "Limits unavailable. Try refreshing.");
 		}).finally(() => {
+			if (generation !== this.generation) { return; }
 			this.refreshing = false;
 			this.pending = undefined;
 			this.change.fire();

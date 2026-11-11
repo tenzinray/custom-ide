@@ -10,6 +10,9 @@ import { IDisposable, MutableDisposable } from '../../../../../base/common/lifec
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
+import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
+import { PiChatOpenAIAccounts } from '../../common/pi-chat-openai-account-types.js';
+import { PiChatOpenAIAccountPicker } from './PiChatOpenAIAccountPicker.js';
 import { PiChatDictation } from './PiChatDictation.js';
 import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
 import { PiChatInputCacheService } from '../PiChatInputCacheService.js';
@@ -18,13 +21,14 @@ import { PiChatTurnStatusBar } from './PiChatTurnStatusBar.js';
 
 export interface PiChatFooterControls extends IDisposable {
 	setBusy(busy: boolean): void;
+	setAccounts(accounts: PiChatOpenAIAccounts | undefined): void;
 	recordEvent(): void;
 	restore(text: string): void;
 	insertFiles(resources: readonly URI[]): void;
 }
 
 /** Composer presentation and local draft state; the conversation pane owns sending. */
-export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSummary | undefined, modelName: string | undefined, models: readonly string[], cache: PiChatInputCacheService, onSelectModel: (model: string) => void, onSend: (text: string) => Promise<void>, onStop: () => Promise<void>, speech: IChatSpeechToTextService, configuration: IConfigurationService, logService: ILogService): PiChatFooterControls {
+export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSummary | undefined, modelName: string | undefined, models: readonly string[], cache: PiChatInputCacheService, onSelectModel: (model: string) => void, onSend: (text: string) => Promise<void>, onStop: () => Promise<void>, speech: IChatSpeechToTextService, configuration: IConfigurationService, logService: ILogService, repoRoot: URI, onSelectAccount: (id?: string) => void): PiChatFooterControls {
 	clearNode(footer);
 	const statusBar = new MutableDisposable<PiChatTurnStatusBar>();
 	const statusHost = append(footer, $('.pi-chat-turn-status-host'));
@@ -48,21 +52,22 @@ export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSu
 	const dictation = new PiChatDictation(mic, dictationStatus, promptInput, speech, configuration, logService);
 	const send = append(actions, $('button.pi-chat-send.codicon.codicon-arrow-up', { 'aria-label': localize('piChat.send', "Send message"), title: localize('piChat.send', "Send message") })) as HTMLButtonElement;
 	const note = append(footer, $('.pi-chat-composer-note'));
+	const accountPicker = new PiChatOpenAIAccountPicker(note, onSelectAccount);
 	if (summary) {
-		const slash = summary.repoPath.lastIndexOf('/');
-		append(note, $('span', {}, summary.repoPath.slice(0, slash + 1)));
-		append(note, $('strong', {}, summary.repoPath.slice(slash + 1)));
-	} else { note.textContent = localize('piChat.chooseConversation', "Select a conversation or start a new chat..."); }
+		const repo = URI.file(summary.repoPath);
+		append(note, $('span.pi-chat-repo-label', {}, isEqual(dirname(repo), repoRoot) ? basename(repo) : summary.repoPath));
+	} else { append(note, $('span.pi-chat-repo-label', {}, localize('piChat.chooseConversation', "Select a conversation or start a new chat..."))); }
 	let busy = false;
 	const update = () => { send.disabled = !promptInput.canSend; };
 	const setBusy = (value: boolean) => {
 		if (busy === value) { return; }
 		busy = value;
+		accountPicker.setBusy(value);
 		if (busy) { statusBar.value = new PiChatTurnStatusBar(statusHost, onStop); }
 		else { statusBar.clear(); }
 		update();
 	};
 	send.addEventListener('click', () => promptInput.submit());
 	update();
-	return { setBusy, recordEvent: () => statusBar.value?.recordEvent(), restore: text => promptInput.restore(text), insertFiles: resources => promptInput.insertFiles(resources), dispose: () => { dictation.dispose(); statusBar.dispose(); promptInput.dispose(); } };
+	return { setBusy, setAccounts: accounts => accountPicker.update(accounts), recordEvent: () => statusBar.value?.recordEvent(), restore: text => promptInput.restore(text), insertFiles: resources => promptInput.insertFiles(resources), dispose: () => { accountPicker.dispose(); dictation.dispose(); statusBar.dispose(); promptInput.dispose(); } };
 }

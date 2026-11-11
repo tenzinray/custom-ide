@@ -603,7 +603,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		if (this.contextService.isInsideWorkspace(extension.location)) {
+		// Product-bundled extensions can live inside the open checkout when running from sources.
+		// They still follow their manifest's trust requirement; workspace-provided code remains blocked.
+		if (!extension.isBuiltin && this.contextService.isInsideWorkspace(extension.location)) {
 			return true;
 		}
 

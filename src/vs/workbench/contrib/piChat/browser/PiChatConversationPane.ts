@@ -8,6 +8,9 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { CodeDataTransfers, containsDragType, extractEditorsDropData } from '../../../../platform/dnd/browser/dnd.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { IPathService } from '../../../../platform/path/common/pathService.js';
+import { IPiChatOpenAIAccountService } from './PiChatOpenAIAccountService.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -65,7 +68,7 @@ export class PiChatConversationPane extends Disposable {
 	private messageCount = 120;
 	private renderPending = false;
 
-	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService) {
+	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService) {
 		super();
 		this.loader = instantiationService.createInstance(PiChatSessionLoadService);
 		this.commands = instantiationService.invokeFunction(accessor => accessor.get(ICommandService));
@@ -121,6 +124,7 @@ export class PiChatConversationPane extends Disposable {
 			if (this.renderPending && !this.hasSelectedText()) { this.renderPending = false; this.render(); }
 		}));
 		this.footer = append(this.element, $('footer.pi-chat-conversation-footer'));
+		this._register(accounts.onDidChange(() => this.footerControls.value?.setAccounts(accounts.state)));
 		this.renderFooter();
 		this.render();
 	}
@@ -210,7 +214,8 @@ export class PiChatConversationPane extends Disposable {
 				this.inputCache.setQueued(summary.id, []);
 				this.render();
 			}
-		}, this.speech, this.configuration, this.logService);
+		}, this.speech, this.configuration, this.logService, joinPath(this.paths.userHome({ preferLocal: true }), 'Documents', 'VSCode'), id => { void this.accounts.change(id); });
+		this.footerControls.value.setAccounts(this.accounts.state);
 		this.footerControls.value.setBusy(this.sending);
 	}
 
