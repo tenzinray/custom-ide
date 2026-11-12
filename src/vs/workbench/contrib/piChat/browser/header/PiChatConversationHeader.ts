@@ -14,7 +14,7 @@ const percentFormatter = safeIntl.NumberFormat('en', { style: 'percent', maximum
 const formatTokens = (count: number) => tokenFormatter.value.format(count);
 
 /** Saved token totals and current context; the workbench tab identifies the repository. */
-export function renderPiChatHeader(header: HTMLElement, summary: PiChatSessionSummary | undefined, history: PiChatSessionHistory | undefined, openAILimits: IPiChatOpenAILimitsService): void {
+export function renderPiChatHeader(header: HTMLElement, summary: PiChatSessionSummary | undefined, history: PiChatSessionHistory | undefined, openAILimits: IPiChatOpenAILimitsService, showOpenAILimits = true): void {
 	clearNode(header);
 	if (history && !summary?.isDraft) {
 		const stats = append(header, $('.pi-chat-usage-stats', { 'aria-label': 'Session token usage and current context' }));
@@ -29,5 +29,5 @@ export function renderPiChatHeader(header: HTMLElement, summary: PiChatSessionSu
 			append(stat, $('strong', {}, value));
 		}
 	}
-	if (summary) { renderPiChatOpenAILimits(header, openAILimits); }
+	if (summary && showOpenAILimits) { renderPiChatOpenAILimits(header, openAILimits); }
 }

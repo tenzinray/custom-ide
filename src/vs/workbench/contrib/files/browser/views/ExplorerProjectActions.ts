@@ -10,13 +10,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
 
 /** Presentation-only actions for a workspace project's Explorer header. */
 export class ExplorerProjectActions extends Disposable {
 	private readonly container: HTMLElement;
 
-	constructor(parent: HTMLElement, project: ExplorerItem, collapse: (project: ExplorerItem) => void) {
+	constructor(parent: HTMLElement, project: ExplorerItem, collapse: (project: ExplorerItem) => void, @ICommandService commands: ICommandService) {
 		super();
 		this.container = DOM.append(parent, DOM.$('.explorer-project-actions'));
 		// Toolbar interaction must not toggle or select the containing tree row.
@@ -25,6 +26,7 @@ export class ExplorerProjectActions extends Disposable {
 		}
 		const bar = this._register(new ActionBar(this.container, { ariaLabel: localize('projectActions', "Project Actions") }));
 		bar.push([
+			this._register(new Action('explorer.newProjectChat', localize('newProjectChat', "New Chat in Project"), ThemeIcon.asClassName(Codicon.commentDiscussion), project.resource.scheme === 'file', () => commands.executeCommand('piChat.newChat', project.resource))),
 			this._register(new Action('explorer.collapseProjectFolders', localize('collapseProjectFolders', "Collapse All Folders in Project"), ThemeIcon.asClassName(Codicon.collapseAll), true, () => collapse(project)))
 		], { icon: true, label: false });
 	}

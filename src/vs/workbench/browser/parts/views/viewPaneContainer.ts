@@ -541,6 +541,15 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => this._onTitleAreaUpdate.fire()));
 	}
 
+	getTitleHeight(): number | undefined {
+		return this.isViewMergedWithContainer() ? this.panes[0]?.getTitleHeight() : undefined;
+	}
+
+	/** Custom title content is owned and disposed by the merged view, not by the workbench part. */
+	getTitleControl(): HTMLElement | undefined {
+		return this.isViewMergedWithContainer() ? this.panes[0]?.getTitleControl() : undefined;
+	}
+
 	getTitle(): string {
 		const containerTitle = this.viewContainerModel.title;
 

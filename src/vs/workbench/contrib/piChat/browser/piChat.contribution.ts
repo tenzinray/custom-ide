@@ -3,8 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { VIEW_ID as explorerViewId } from '../../files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -29,6 +35,34 @@ import { PiChatSessionListService } from './PiChatSessionListService.js';
 import { IPiChatSelectionService, PiChatSelectionService } from './PiChatSelectionService.js';
 import { IPiChatOpenAIAccountService, PiChatOpenAIAccountService } from './PiChatOpenAIAccountService.js';
 import { IPiChatOpenAILimitsService, PiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({ id: 'piChat.newChat', title: localize2('piChat.newChat', "New Pi Chat"), f1: true });
+	}
+
+	async run(accessor: ServicesAccessor, folder?: URI, split = false): Promise<void> {
+		const notifications = accessor.get(INotificationService);
+		try {
+			const view = await accessor.get(IViewsService).openView<PiChatConversationView>(PiChatConversationView.ID, true);
+			await view?.newChat(folder, split ? { direction: Direction.Right } : {});
+		} catch (error) { notifications.error(error); }
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'piChat.newWorkspaceFolderChat', title: localize2('piChat.newProjectChat', "New Chat in Project"), icon: Codicon.commentDiscussion,
+			menu: { id: MenuId.ViewTitle, group: 'navigation', order: 35, when: ContextKeyExpr.and(ContextKeyExpr.equals('view', explorerViewId), WorkbenchStateContext.isEqualTo('folder')) },
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri;
+		if (folder?.scheme === 'file') { await accessor.get(ICommandService).executeCommand('piChat.newChat', folder); }
+	}
+});
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -98,7 +132,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 class PiChatEditorResolver implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.piChatEditorResolver';
-	constructor(@IEditorResolverService editorResolver: IEditorResolverService, @IInstantiationService instantiationService: IInstantiationService) {
+	constructor(@IEditorResolverService editorResolver: IEditorResolverService, @IInstantiationService instantiationService: IInstantiationService, @IPiChatSelectionService selection: IPiChatSelectionService) {
 		const sessions = instantiationService.createInstance(PiChatSessionListService);
 		editorResolver.registerEditor('pi-chat:**/**', {
 			id: PiChatSessionEditor.ID,
@@ -106,7 +140,8 @@ class PiChatEditorResolver implements IWorkbenchContribution {
 			priority: RegisteredEditorPriority.exclusive,
 		}, { singlePerResource: true }, {
 			createEditorInput: async ({ resource }) => {
-				const session = await sessions.findSession(resource.path.slice(1));
+				const id = resource.path.slice(1);
+				const session = selection.groups.flatMap(group => group.sessions).find(session => session.id === id) ?? await sessions.findSession(id);
 				if (!session) { throw new Error(`Pi session not found: ${resource.path}`); }
 				return { editor: new PiChatSessionEditorInput(session) };
 			},

@@ -331,6 +331,16 @@ export abstract class ViewPane extends Pane implements IView {
 	readonly id: string;
 
 	private _title: string;
+	/** A merged view may own its title headers inside its content instead of the part title. */
+	getTitleHeight(): number | undefined {
+		return undefined;
+	}
+
+	/** Optional replacement for the part title switcher when this view is merged with its container. */
+	getTitleControl(): HTMLElement | undefined {
+		return undefined;
+	}
+
 	public get title(): string {
 		return this._title;
 	}

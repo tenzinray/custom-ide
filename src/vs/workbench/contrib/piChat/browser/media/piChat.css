@@ -199,3 +199,32 @@
 }
 .pi-chat-sessions, .pi-chat-conversation-body, .pi-chat-repo-results, .pi-chat-activity-output { scrollbar-width: none; }
 .pi-chat-sessions::-webkit-scrollbar, .pi-chat-conversation-body::-webkit-scrollbar, .pi-chat-repo-results::-webkit-scrollbar, .pi-chat-activity-output::-webkit-scrollbar { display: none; }
+
+/* Chat tabs share the existing Secondary Side Bar title switcher's styling. */
+.pi-chat-new-actions { display: flex; gap: 4px; }
+.pi-chat-new-actions .pi-chat-new-chat { flex: 1; min-width: 0; }
+.pi-chat-new-split { width: 36px; border: 0; border-radius: var(--vscode-cornerRadius-small); background: transparent; color: var(--vscode-foreground); }
+.pi-chat-new-split:hover { background: var(--vscode-toolbar-hoverBackground); }
+.pi-chat-groups { width: 100%; height: 100%; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; }
+.pi-chat-group { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--vscode-editor-background); }
+.pi-chat-group-title { display: flex; flex: 0 0 35px; align-items: center; min-width: 0; padding: 0 8px; background: var(--vscode-sideBarTitle-background); }
+.pi-chat-group-title[hidden] { display: none; }
+.pi-chat-group-title > .pi-chat-title-tabs { display: flex; flex: 1; min-width: 0; overflow: hidden; }
+.pi-chat-title-tabs > .composite-bar { min-width: 0; max-width: 100%; }
+.pi-chat-title-tabs > .composite-bar > .monaco-action-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pi-chat-title-tabs .actions-container { display: flex; width: max-content; align-items: center; }
+.pi-chat-title-tabs .pi-chat-group-tab { align-items: center; flex-shrink: 0; cursor: pointer; color: var(--vscode-panelTitle-inactiveForeground); }
+.pi-chat-title-tabs .pi-chat-group-tab.checked { color: var(--vscode-panelTitle-activeForeground); }
+.monaco-workbench .pane-composite-part > .title > .pi-chat-title-tabs > .composite-bar > .monaco-action-bar .pi-chat-group-tab.action-item:not(.icon) { gap: var(--vscode-spacing-size80, 8px); padding-inline-end: var(--vscode-spacing-size40, 4px); }
+.pi-chat-group-tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.pi-chat-title-tabs .pi-chat-add-tab { display: flex; align-items: center; flex-shrink: 0; padding: 0 4px; }
+.pi-chat-tab-close, .pi-chat-group-action { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--vscode-cornerRadius-small); color: var(--vscode-foreground); background: transparent; cursor: pointer; }
+.pi-chat-tab-close { position: relative; z-index: 1; width: 20px; }
+.pi-chat-tab-close:hover, .pi-chat-group-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+.pi-chat-group-tab:focus-visible, .pi-chat-title-tabs button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.pi-chat-group-body { flex: 1; min-height: 0; overflow: hidden; }
+.pi-chat-group-body > .pi-chat-conversation[hidden] { display: none; }
+.pi-chat-title-tabs[data-chat-drop] { outline: 1px solid var(--vscode-editorGroup-dropBorder, var(--vscode-focusBorder)); outline-offset: -1px; background: var(--vscode-editorGroup-dropBackground); }
+.pi-chat-group[data-chat-drop]::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 10; background: var(--vscode-editorGroup-dropBackground); outline: 1px solid var(--vscode-editorGroup-dropBorder, var(--vscode-focusBorder)); outline-offset: -1px; }
+.pi-chat-group[data-chat-drop='left']::after { right: 50%; }
+.pi-chat-group[data-chat-drop='right']::after { left: 50%; }

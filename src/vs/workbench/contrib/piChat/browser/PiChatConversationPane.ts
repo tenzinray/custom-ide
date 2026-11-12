@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IPathService } from '../../../../platform/path/common/pathService.js';
 import { IPiChatOpenAIAccountService } from './PiChatOpenAIAccountService.js';
+import { Event } from '../../../../base/common/event.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -35,6 +36,7 @@ import { PiChatBodyScroll } from './body/PiChatBodyScroll.js';
 import { PiChatMessageCopy } from './body/PiChatMessageCopy.js';
 import { PiChatSessionLoadService } from './PiChatSessionLoadService.js';
 import { PiChatModelService } from './PiChatModelService.js';
+import { isPiChatDragEvent } from './PiChatGroupDropTarget.js';
 import { PiChatRepoPickerContainer } from './PiChatRepoPickerContainer.js';
 import { PiChatFooterControls, renderPiChatFooter } from './footer/PiChatConversationFooter.js';
 import { renderPiChatHeader } from './header/PiChatConversationHeader.js';
@@ -67,6 +69,7 @@ export class PiChatConversationPane extends Disposable {
 	private summary: PiChatSessionSummary | undefined;
 	private messageCount = 120;
 	private renderPending = false;
+	private showOpenAILimits = true;
 
 	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService) {
 		super();
@@ -75,7 +78,7 @@ export class PiChatConversationPane extends Disposable {
 		this.selection = instantiationService.invokeFunction(accessor => accessor.get(IPiChatSelectionService));
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
 		this.copy = new PiChatMessageCopy(text => clipboardService.writeText(text));
-		this._register(this.selection.onDidSelectSession(session => {
+		this._register(Event.any(this.selection.onDidSelectSession, this.selection.onDidUpdateSession)(session => {
 			if (session && session.id === this.summary?.id && !this.sending && !session.isDraft) { void this.show(session); }
 		}));
 		void instantiationService.createInstance(PiChatModelService).loadModels().then(({ defaultModel, models }) => {
@@ -86,7 +89,7 @@ export class PiChatConversationPane extends Disposable {
 		});
 		this.element = append(parent, $('.pi-chat-conversation'));
 		const showFileDrop = (event: DragEvent) => {
-			const acceptsFiles = !!this.summary && containsDragType(event, DataTransfers.RESOURCES, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES);
+			const acceptsFiles = !!this.summary && !isPiChatDragEvent(event) && containsDragType(event, DataTransfers.RESOURCES, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES);
 			this.element.classList.toggle('pi-chat-file-drag-over', acceptsFiles);
 			if (acceptsFiles) {
 				event.preventDefault();
@@ -113,9 +116,9 @@ export class PiChatConversationPane extends Disposable {
 		// A cancelled drag can end at its source, outside this conversation.
 		this._register(addDisposableListener(getWindow(this.element).document, 'dragend', clearFileDrop, true));
 		this.header = append(this.element, $('header.pi-chat-conversation-header'));
-		this._register(openAILimits.onDidChange(() => renderPiChatHeader(this.header, this.summary, this.history, openAILimits)));
+		this._register(openAILimits.onDidChange(() => this.renderHeader()));
 		this.limitClock.cancelAndSet(() => {
-			if (this.summary) { renderPiChatHeader(this.header, this.summary, this.history, openAILimits); void openAILimits.load(); }
+			if (this.summary && this.showOpenAILimits) { this.renderHeader(); void openAILimits.load(); }
 		}, 60_000);
 		const bodyShell = append(this.element, $('.pi-chat-conversation-body-shell'));
 		this.body = append(bodyShell, $('.pi-chat-conversation-body', { 'aria-live': 'polite' }));
@@ -127,6 +130,16 @@ export class PiChatConversationPane extends Disposable {
 		this._register(accounts.onDidChange(() => this.footerControls.value?.setAccounts(accounts.state)));
 		this.renderFooter();
 		this.render();
+	}
+
+	setShowOpenAILimits(show: boolean): void {
+		if (show === this.showOpenAILimits) { return; }
+		this.showOpenAILimits = show;
+		this.renderHeader();
+	}
+
+	private renderHeader(): void {
+		renderPiChatHeader(this.header, this.summary, this.history, this.openAILimits, this.showOpenAILimits);
 	}
 
 	insertFiles(resources: readonly URI[]): boolean {
@@ -142,7 +155,7 @@ export class PiChatConversationPane extends Disposable {
 		this.history = undefined;
 		this.queued = [];
 		this.bodyScroll.reset();
-		renderPiChatHeader(this.header, undefined, undefined, this.openAILimits);
+		this.renderHeader();
 		this.renderFooter();
 		this.render();
 	}
@@ -154,7 +167,7 @@ export class PiChatConversationPane extends Disposable {
 		this.element.classList.remove('pi-chat-file-drag-over');
 		void this.openAILimits.load();
 		this.history = undefined;
-		renderPiChatHeader(this.header, this.summary, this.history, this.openAILimits);
+		this.renderHeader();
 		this.queued = [];
 		this.messageCount = 120;
 		const request = ++this.requestId;
@@ -165,7 +178,7 @@ export class PiChatConversationPane extends Disposable {
 			const history = await this.loader.loadSession(summary);
 			if (request !== this.requestId || this._store.isDisposed) { return; }
 			this.history = history;
-			renderPiChatHeader(this.header, this.summary, this.history, this.openAILimits);
+			this.renderHeader();
 			void this.loadContextUsage(summary, request, history);
 			const snapshot = await this.commands.executeCommand<PiChatRunSnapshot>('piChat.pollTurn', summary.id, 0);
 			if (request !== this.requestId || this._store.isDisposed) { return; }
@@ -193,7 +206,7 @@ export class PiChatConversationPane extends Disposable {
 			const usage = await this.commands.executeCommand<PiChatContextUsage | undefined>('piChat.contextUsage', summary.id, summary.sessionFile.fsPath, summary.repoPath);
 			if (request === this.requestId && this.history === history && !this._store.isDisposed) {
 				history.contextUsage = usage;
-				renderPiChatHeader(this.header, this.summary, history, this.openAILimits);
+				this.renderHeader();
 			}
 		} catch { /* A missing or unreadable model leaves context unknown; conversation stays available. */ }
 	}
@@ -318,13 +331,13 @@ export class PiChatConversationPane extends Disposable {
 					this.summary = updated;
 					this.history = await this.loader.loadSession(updated);
 					if (request !== this.requestId || this._store.isDisposed) { return; }
-					renderPiChatHeader(this.header, this.summary, this.history, this.openAILimits);
+					this.renderHeader();
 					void this.loadContextUsage(updated, request, this.history);
 					this.inputCache.setQueued(summary.id, []);
 					this.sending = false;
 					this.footerControls.value?.setBusy(false);
 					this.render();
-					this.selection.selectSession(updated);
+					this.selection.updateSession(updated);
 					void this.openAILimits.refresh();
 					return;
 				}

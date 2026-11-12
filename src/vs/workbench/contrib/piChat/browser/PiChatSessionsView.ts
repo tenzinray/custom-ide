@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow } from '../../../../base/browser/dom.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { $, addDisposableListener, append, getWindow } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -22,31 +22,27 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 import { PiChatCreatedSession } from '../common/pi-chat-run-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
-import { PiChatSessionEditorInput } from './PiChatSessionEditorInput.js';
 import { PiChatSessionListService } from './PiChatSessionListService.js';
 import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatSelectionService } from './PiChatSelectionService.js';
-import { PiChatRepoPicker } from './sidebar/PiChatRepoPicker.js';
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { renderPiChatSessionList } from './sidebar/PiChatSessionList.js';
 import './media/piChat.css';
 
-/** Pi UI session list; selection shows the conversation on the right, split opens an editor tab. */
+/** Session list; selection opens a secondary tab, explicit split opens a secondary group. */
 export class PiChatSessionsView extends ViewPane {
 	static readonly ID = 'workbench.view.piChatSessions';
 	private list: HTMLElement | undefined;
-	private shell: HTMLElement | undefined;
 	private sessions: PiChatSessionSummary[] = [];
 	private pinnedSessions: PiChatSessionSummary[] = [];
 	private hasMore = false;
 	private draft: PiChatSessionSummary | undefined;
 	private limit = PiChatSessionListService.initialLimit;
 	private refreshId = 0;
-	private readonly picker = this._register(new MutableDisposable<PiChatRepoPicker>());
 	private readonly sessionListService: PiChatSessionListService;
 	private readonly inputCache: PiChatInputCacheService;
 
@@ -61,7 +57,6 @@ export class PiChatSessionsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IPiChatSelectionService private readonly selection: IPiChatSelectionService,
 		@IFileService private readonly fileService: IFileService,
@@ -72,12 +67,12 @@ export class PiChatSessionsView extends ViewPane {
 		this.sessionListService = piInstantiationService.createInstance(PiChatSessionListService);
 		this.inputCache = piInstantiationService.createInstance(PiChatInputCacheService);
 		this._register(this.onDidChangeBodyVisibility(visible => { if (visible) { void this.refresh(); } }));
-		this._register(selection.onDidSelectSession(session => {
+		this._register(Event.any(selection.onDidSelectSession, selection.onDidUpdateSession)(session => {
 			if (!session) { this.renderSessions(); return; }
 			if (session.isDraft) { this.draft = session; }
 			if (!session.isDraft && (this.draft?.id === session.id || [...this.sessions, ...this.pinnedSessions].some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt))) {
-				this.draft = undefined;
-				this.inputCache.setDraftSession(undefined);
+				if (this.draft?.id === session.id) { this.draft = undefined; }
+				if (this.inputCache.getDraftSession()?.id === session.id) { this.inputCache.setDraftSession(undefined); }
 				this.sessionListService.invalidate();
 				void this.refresh();
 			} else { this.renderSessions(); }
@@ -89,11 +84,14 @@ export class PiChatSessionsView extends ViewPane {
 		const targetWindow = getWindow(container);
 		const timer = targetWindow.setInterval(() => this.renderSessions(), 60_000);
 		this._register(toDisposable(() => targetWindow.clearInterval(timer)));
-		const shell = this.shell = append(container, $('.pi-chat-sidebar'));
-		const create = append(shell, $('button.pi-chat-new-chat'));
+		const shell = append(container, $('.pi-chat-sidebar'));
+		const newActions = append(shell, $('.pi-chat-new-actions'));
+		const create = append(newActions, $('button.pi-chat-new-chat'));
 		append(create, $('span.codicon.codicon-add', { 'aria-hidden': 'true' }));
-		append(create, $('span', {}, 'New chat'));
-		create.addEventListener('click', () => this.openRepoPicker());
+		append(create, $('span', {}, localize('piChat.newChat', "New Chat")));
+		this._register(addDisposableListener(create, 'click', () => { void this.commands.executeCommand('piChat.newChat'); }));
+		const split = append(newActions, $('button.pi-chat-new-split.codicon.codicon-split-horizontal', { type: 'button', 'aria-label': localize('piChat.newSplit', "New Chat in Split View") }));
+		this._register(addDisposableListener(split, 'click', () => { void this.commands.executeCommand('piChat.newChat', undefined, true); }));
 		this.list = append(shell, $('nav.pi-chat-sessions', { 'aria-label': localize('piChat.conversations', "Conversations") }));
 		const bottom = append(shell, $('.pi-chat-sidebar-bottom'));
 		const settings = append(bottom, $('button.pi-chat-sidebar-settings', { disabled: 'true', title: 'Settings is not available yet' }));
@@ -101,11 +99,6 @@ export class PiChatSessionsView extends ViewPane {
 		append(settings, $('span', {}, 'Settings'));
 		void this.restoreDraft();
 		void this.refresh();
-	}
-
-	private openRepoPicker(): void {
-		if (!this.shell) { return; }
-		this.picker.value = this.piInstantiationService.createInstance(PiChatRepoPicker, this.shell, () => this.picker.clear());
 	}
 
 	private async restoreDraft(): Promise<void> {
@@ -145,10 +138,14 @@ export class PiChatSessionsView extends ViewPane {
 
 	private renderSessions(): void {
 		if (!this.list) { return; }
-		const sessions = [...this.pinnedSessions, ...this.sessions].filter(session => session.id !== this.draft?.id);
-		renderPiChatSessionList(this.list, this.draft ? [this.draft, ...sessions] : sessions, this.sessionListService.getPinnedIds(), this.hasMore, this.selection.selectedSession?.id, this.piInstantiationService,
+		const openSessions = this.selection.groups.flatMap(group => group.sessions);
+		const drafts = [...new Map(openSessions.filter(session => session.isDraft).map(session => [session.id, session])).values()];
+		if (this.draft && !openSessions.some(session => session.id === this.draft?.id)) { drafts.push(this.draft); }
+		const draftIds = new Set(drafts.map(session => session.id));
+		const sessions = [...this.pinnedSessions, ...this.sessions].filter(session => !draftIds.has(session.id));
+		renderPiChatSessionList(this.list, [...drafts, ...sessions], this.sessionListService.getPinnedIds(), this.hasMore, this.selection.selectedSession?.id, this.piInstantiationService,
 			session => { this.selection.selectSession(session); void this.viewsService.openView(PiChatConversationView.ID, true); },
-			session => this.openInEditor(session),
+			session => { this.selection.selectSession(session, { direction: Direction.Right }); void this.viewsService.openView(PiChatConversationView.ID, true); },
 			() => { this.limit += PiChatSessionListService.pageSize; void this.refresh(); },
 			session => {
 				this.sessionListService.setPinned(session.id, !this.sessionListService.getPinnedIds().has(session.id));
@@ -156,14 +153,4 @@ export class PiChatSessionsView extends ViewPane {
 			});
 	}
 
-	private openInEditor(session: PiChatSessionSummary): void {
-		const existing = this.editorService.findEditors(PiChatSessionEditorInput.resourceForSession(session.id))[0];
-		const input = existing?.editor ?? new PiChatSessionEditorInput(session);
-		void this.editorService.openEditor(input, { pinned: true }, existing?.groupId ?? SIDE_GROUP).then(pane => {
-			if (input !== pane?.input && !existing) { input.dispose(); }
-		}, error => {
-			if (!existing) { input.dispose(); }
-			onUnexpectedError(error);
-		});
-	}
 }

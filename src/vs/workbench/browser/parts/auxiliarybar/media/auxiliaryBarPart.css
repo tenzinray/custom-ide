@@ -103,7 +103,7 @@
 	outline: var(--vscode-contrastActiveBorder, unset) dashed 1px !important;
 }
 
-.monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title > .title-actions {
+.monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title:not(.has-custom-title-control) > .title-actions {
 	flex: 1;
 }
 

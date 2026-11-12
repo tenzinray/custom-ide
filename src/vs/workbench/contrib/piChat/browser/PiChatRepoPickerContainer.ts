@@ -8,7 +8,6 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -17,18 +16,18 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { GitRepository, listGitRepositories } from '../../workspace/browser/gitRepositories.js';
-import { PiChatCreatedSession } from '../common/pi-chat-run-types.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
-import { PiChatInputCacheService } from './PiChatInputCacheService.js';
+import { PiChatSessionCreationService } from './PiChatSessionCreationService.js';
 import { PiChatSessionListService } from './PiChatSessionListService.js';
-import { IPiChatSelectionService } from './PiChatSelectionService.js';
+import { IPiChatSelectionService, PiChatSessionOpenOptions } from './PiChatSelectionService.js';
 import { PiChatRepoPickerBody } from './body/PiChatRepoPickerBody.js';
 
 /** Shared popup/empty-state coordinator for recent-session paging, repository discovery, and chat selection. */
 export class PiChatRepoPickerContainer extends Disposable {
 	private readonly body: PiChatRepoPickerBody;
-	private readonly inputCache: PiChatInputCacheService;
+	sessionOpenOptions: PiChatSessionOpenOptions = {};
+	private readonly creation: PiChatSessionCreationService;
 	private readonly sessionListService: PiChatSessionListService;
 	private sessionLimit = PiChatSessionListService.initialLimit;
 	private sessionRequestId = 0;
@@ -42,14 +41,13 @@ export class PiChatRepoPickerContainer extends Disposable {
 		@IEditorService private readonly editors: IEditorService,
 		@IFileService private readonly files: IFileService,
 		@IPathService private readonly paths: IPathService,
-		@ICommandService private readonly commands: ICommandService,
 		@IPiChatSelectionService private readonly selection: IPiChatSelectionService,
 		@IViewsService private readonly views: IViewsService,
 		@INotificationService private readonly notifications: INotificationService,
 		@IFileDialogService private readonly dialogs: IFileDialogService,
 	) {
 		super();
-		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
+		this.creation = instantiationService.createInstance(PiChatSessionCreationService);
 		this.sessionListService = instantiationService.createInstance(PiChatSessionListService);
 		this.body = this._register(new PiChatRepoPickerBody(parent, repo => { void this.createDraft(repo); }, () => { void this.openFolder(); },
 			session => { if (!this.creating) { this.selectSession(session); } },
@@ -91,7 +89,7 @@ export class PiChatRepoPickerContainer extends Disposable {
 
 	private selectSession(session: PiChatSessionSummary): void {
 		if (this._store.isDisposed) { return; }
-		this.selection.selectSession(session);
+		this.selection.selectSession(session, this.sessionOpenOptions);
 		this.onCreated?.();
 		void this.views.openView(PiChatConversationView.ID, true).catch(error => this.notifications.error(error));
 	}
@@ -151,10 +149,8 @@ export class PiChatRepoPickerContainer extends Disposable {
 		this.creating = true;
 		this.body.setBusy(true);
 		try {
-			const created = await this.commands.executeCommand<PiChatCreatedSession>('piChat.createSession', repo.folderUri.fsPath);
-			if (!created || this._store.isDisposed) { return; }
-			const draft: PiChatSessionSummary = { id: created.id, repoName: repo.name, repoPath: repo.folderUri.fsPath, lastMessageAt: new Date().toISOString(), sessionFile: URI.file(created.sessionFile), isDraft: true };
-			this.inputCache.setDraftSession(draft);
+			const draft = await this.creation.createDraft(repo.folderUri);
+			if (!draft || this._store.isDisposed) { return; }
 			this.selectSession(draft);
 		} catch (error) { if (!this._store.isDisposed) { this.notifications.error(error); } }
 		finally { this.creating = false; if (!this._store.isDisposed) { this.body.setBusy(false); } }

@@ -15,13 +15,13 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { PiChatConversationPane } from './PiChatConversationPane.js';
-import { IPiChatSelectionService } from './PiChatSelectionService.js';
+import { PiChatConversationContainer } from './PiChatConversationContainer.js';
+import { IPiChatSelectionService, PiChatSessionOpenOptions } from './PiChatSelectionService.js';
 
-/** Secondary sidebar conversation; selecting a saved session changes only this view. */
+/** Secondary sidebar shell; the container owns conversation tabs, splits, and new-chat coordination. */
 export class PiChatConversationView extends ViewPane {
 	static readonly ID = 'workbench.view.piChatConversation';
-	private conversation: PiChatConversationPane | undefined;
+	private conversation: PiChatConversationContainer | undefined;
 
 	override get singleViewPaneContainerTitle(): string {
 		return this.selection?.selectedSession?.repoName ?? 'Pi Conversation';
@@ -41,29 +41,38 @@ export class PiChatConversationView extends ViewPane {
 		@IPiChatSelectionService private readonly selection: IPiChatSelectionService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, piInstantiationService, openerService, themeService, hoverService);
-		this._register(selection.onDidSelectSession(session => {
-			this.updateTitle(this.singleViewPaneContainerTitle);
-			this.updateCompositeTabLabel();
-			if (session) { void this.conversation?.show(session); }
-			else { this.conversation?.clearDraft(); }
-		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.conversation = this._register(this.piInstantiationService.createInstance(PiChatConversationPane, container));
-		if (this.selection.selectedSession) {
-			this.updateTitle(this.selection.selectedSession.repoName);
-			this.updateCompositeTabLabel();
-			void this.conversation.show(this.selection.selectedSession);
-		}
+		this.conversation = this._register(this.piInstantiationService.createInstance(PiChatConversationContainer, container));
+		this._register(this.conversation.onDidChangeTitle(() => this.updateConversationTitle()));
+		this.updateConversationTitle();
+	}
+
+	override getTitleControl(): HTMLElement | undefined {
+		return this.conversation?.titleControl;
+	}
+
+	override getTitleHeight(): number | undefined {
+		return this.selection.groups.length > 1 ? 0 : undefined;
+	}
+
+	async newChat(folder?: URI, options?: PiChatSessionOpenOptions): Promise<void> {
+		await this.conversation?.newChat(folder, options);
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.conversation?.layout(width, height);
 	}
 
 	insertFiles(resources: readonly URI[]): boolean {
 		return this.conversation?.insertFiles(resources) ?? false;
 	}
 
-	private updateCompositeTabLabel(): void {
+	private updateConversationTitle(): void {
+		this.updateTitle(this.singleViewPaneContainerTitle);
 		const container = this.viewDescriptorService.getViewContainerByViewId(PiChatConversationView.ID);
 		if (container) {
 			this.viewDescriptorService.getViewContainerModel(container).setTitleOverride(this.selection.selectedSession?.repoName);

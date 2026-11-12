@@ -5,13 +5,12 @@
 
 import { localize } from '../../../../../nls.js';
 import { $, append, clearNode } from '../../../../../base/browser/dom.js';
-import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { fillPiChatDragData } from '../PiChatGroupDropTarget.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
-import { PiChatSessionEditorInput } from '../PiChatSessionEditorInput.js';
 import { createPiChatSessionLoadMoreButton, renderPiChatSessionDetails } from './pi-chat-session-list-items.js';
 
-/** Pi UI list rows: selection opens secondary chat; split control and drag open editor tabs. */
+/** Selection opens secondary tabs; split opens secondary groups; drag also supports editor groups. */
 export function renderPiChatSessionList(list: HTMLElement, sessions: PiChatSessionSummary[], pinnedIds: ReadonlySet<string>, hasMore: boolean, selectedId: string | undefined, instantiationService: IInstantiationService, onSelect: (session: PiChatSessionSummary) => void, onSplit: (session: PiChatSessionSummary) => void, onLoadMore: () => void, onTogglePin: (session: PiChatSessionSummary) => void): void {
 	clearNode(list);
 	const now = Date.now();
@@ -34,12 +33,12 @@ export function renderPiChatSessionList(list: HTMLElement, sessions: PiChatSessi
 			const pinLabel = isPinned ? localize('piChat.unpin', "Unpin Chat") : localize('piChat.pin', "Pin Chat");
 			const pin = append(row, $(`button.pi-chat-session-pin.codicon.codicon-${isPinned ? 'pinned' : 'pin'}`, { 'aria-label': pinLabel, 'aria-pressed': String(isPinned) }));
 			pin.addEventListener('click', () => onTogglePin(session));
-			const split = append(row, $('button.pi-chat-session-split.codicon.codicon-split-horizontal', { 'aria-label': `Open ${session.repoName} in split view`, title: 'Open in split view' }));
+			const split = append(row, $('button.pi-chat-session-split.codicon.codicon-split-horizontal', { 'aria-label': localize('piChat.splitSession', "Open {0} in Split View", session.repoName) }));
 			split.addEventListener('click', () => onSplit(session));
 			if (!session.isDraft) {
 				row.draggable = true;
 				row.addEventListener('dragstart', event => {
-					instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [PiChatSessionEditorInput.resourceForSession(session.id)], event));
+					fillPiChatDragData(instantiationService, session, event);
 				});
 			}
 		}

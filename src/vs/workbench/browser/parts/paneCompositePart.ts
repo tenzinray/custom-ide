@@ -120,6 +120,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private titleContainer: HTMLElement | undefined;
+	private customTitleControl: HTMLElement | undefined;
+	private customTitleHeight: number | undefined;
 	private headerFooterCompositeBarContainer: HTMLElement | undefined;
 	protected readonly headerFooterCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
@@ -177,7 +179,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			titleForegroundColor,
 			titleBorderColor,
 			partId,
-			partOptions
+			{ ...partOptions, titleHeight: () => {
+				const composite = this.getActivePaneComposite();
+				return (composite instanceof PaneComposite ? composite.getViewPaneContainer()?.getTitleHeight() : undefined) ?? partOptions.titleHeight?.();
+			} }
 		);
 		this.registerListeners();
 	}
@@ -213,6 +218,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const compositeId = composite.getId();
 		this.activePaneContextKey.set(compositeId);
 		this.element.dataset.activeComposite = compositeId;
+		this.updateTitleControl();
 	}
 
 	private onDidClose(composite: IComposite): void {
@@ -220,6 +226,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (this.activePaneContextKey.get() === id) {
 			this.activePaneContextKey.reset();
 			delete this.element.dataset.activeComposite;
+			if (this.customTitleControl?.parentElement === this.titleContainer) { this.customTitleControl?.remove(); }
+			this.customTitleControl = undefined;
+			this.titleContainer?.classList.remove('has-custom-title-control');
 		}
 	}
 
@@ -490,8 +499,30 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return this.instantiationService.createInstance(PaneCompositeBar, this.location, this.getCompositeBarOptions(), this.partId, this);
 	}
 
+	private updateTitleControl(): void {
+		const composite = this.getActivePaneComposite();
+		const control = composite instanceof PaneComposite ? composite.getViewPaneContainer()?.getTitleControl() : undefined;
+		if (control !== this.customTitleControl) {
+			if (this.customTitleControl?.parentElement === this.titleContainer) { this.customTitleControl?.remove(); }
+			this.customTitleControl = control;
+			if (control && this.titleContainer) {
+				control.classList.add('custom-title-control');
+				this.titleContainer.prepend(control);
+			}
+		}
+		this.titleContainer?.classList.toggle('has-custom-title-control', !!control);
+		const titleHeight = composite instanceof PaneComposite ? composite.getViewPaneContainer()?.getTitleHeight() : undefined;
+		this.titleContainer?.classList.toggle('content-owned-title', titleHeight === 0);
+		if (titleHeight !== this.customTitleHeight) {
+			this.customTitleHeight = titleHeight;
+			const dimension = this.getRelayoutDimension();
+			if (dimension && this.contentPosition) { this.layout(dimension.width, dimension.height, this.contentPosition.top, this.contentPosition.left); }
+		}
+	}
+
 	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
+		this.updateTitleControl();
 
 		if (!this.pendingCompositeBarLayout.value) {
 			this.pendingCompositeBarLayout.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => {

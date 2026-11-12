@@ -999,7 +999,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.container.classList.toggle('explorer-project-child', inWorkspace && !stat.isRoot);
 		templateData.container.classList.toggle('explorer-project-last', inWorkspace && this.isLastProjectItem(stat));
 		if (inWorkspace && stat.isRoot) {
-			templateData.elementDisposables.add(new ExplorerProjectActions(templateData.container, stat, this.collapseProject));
+			templateData.elementDisposables.add(this.instantiationService.createInstance(ExplorerProjectActions, templateData.container, stat, this.collapseProject));
 		}
 	}
 

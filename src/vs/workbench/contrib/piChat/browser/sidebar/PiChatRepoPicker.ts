@@ -8,12 +8,13 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { PiChatRepoPickerContainer } from '../PiChatRepoPickerContainer.js';
+import { PiChatSessionOpenOptions } from '../PiChatSelectionService.js';
 
 /** Popup shell only; shares new-chat data flow and rows with the inline empty state. */
 export class PiChatRepoPicker extends Disposable {
 	private readonly overlay: HTMLElement;
 
-	constructor(anchor: HTMLElement, onClose: () => void, @IInstantiationService instantiationService: IInstantiationService) {
+	constructor(anchor: HTMLElement, onClose: () => void, options: PiChatSessionOpenOptions, @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		// Attach inside the workbench so theme tokens and its font inherit into the dialog.
 		this.overlay = append(anchor.closest('.monaco-workbench') ?? anchor, $('.pi-chat-repo-overlay'));
@@ -26,7 +27,9 @@ export class PiChatRepoPicker extends Disposable {
 		const close = append(heading, $('button.codicon.codicon-close', { type: 'button', 'aria-label': localize('piChat.closeRepoPicker', "Close") }));
 		this._register(addDisposableListener(close, 'click', onClose));
 		this._register(addDisposableListener(this.overlay, 'keydown', event => { if (event.key === 'Escape') { onClose(); } }));
-		this._register(instantiationService.createInstance(PiChatRepoPickerContainer, dialog, onClose)).focus();
+		const container = this._register(instantiationService.createInstance(PiChatRepoPickerContainer, dialog, onClose));
+		container.sessionOpenOptions = options;
+		container.focus();
 	}
 
 	override dispose(): void { this.overlay.remove(); super.dispose(); }
