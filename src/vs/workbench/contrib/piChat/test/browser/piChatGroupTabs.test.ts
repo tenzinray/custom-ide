@@ -13,17 +13,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { PiChatGroupTabs } from '../../browser/header/PiChatGroupTabs.js';
 import { PiChatGroup } from '../../browser/PiChatSelectionService.js';
+import { PiChatTab } from '../../common/pi-chat-tab-types.js';
 import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
 
 suite('Pi chat title tabs', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = (id: string): PiChatSessionSummary => ({ id, repoName: id, repoPath: `/repos/${id}`, sessionFile: URI.file(`/sessions/${id}.jsonl`), lastMessageAt: '2026-01-01T00:00:00Z', isDraft: true });
 	const groups: PiChatGroup[] = [
-		{ id: 0, sessions: [session('book'), session('custom-ide')], activeSessionId: 'book' },
-		{ id: 1, sessions: [session('other')], activeSessionId: 'other' },
+		{ id: 0, tabs: [session('book'), session('custom-ide')], activeSessionId: 'book' },
+		{ id: 1, tabs: [session('other')], activeSessionId: 'other' },
 	];
 
-	function createTabs(onNew: () => void, onSelect: (session: PiChatSessionSummary, groupId: number) => void, onClose: (session: PiChatSessionSummary, groupId: number) => void): PiChatGroupTabs {
+	function createTabs(onNew: () => void, onSelect: (tab: PiChatTab, groupId: number) => void, onClose: (tab: PiChatTab, groupId: number) => void): PiChatGroupTabs {
 		const tabs = store.add(new PiChatGroupTabs(onNew, onSelect, onClose, () => { }, upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) })));
 		append(mainWindow.document.body, tabs.element);
 		store.add(toDisposable(() => tabs.element.remove()));
@@ -46,6 +47,14 @@ suite('Pi chat title tabs', () => {
 		}, { labels: ['book', 'custom-ide'], selected: 'book', last: 'pi-chat-add-tab', plusCount: 1, splitCount: 0, duplicateHeaders: 0, created: 1 });
 	});
 
+	test('setup tabs have a New Chat label and the compact close glyph', () => {
+		const selected: string[] = [];
+		const tabs = createTabs(() => { }, tab => selected.push(tab.id), () => { });
+		tabs.render({ id: 0, tabs: [{ id: 'setup', isNewChat: true }], activeSessionId: 'setup' });
+		tabs.element.querySelector<HTMLElement>('[role="tab"]')!.click();
+		assert.deepStrictEqual({ label: tabs.element.querySelector('.action-label')?.textContent, compact: !!tabs.element.querySelector('.pi-chat-tab-close.codicon-close-compact'), selected }, { label: 'New Chat', compact: true, selected: ['setup'] });
+	});
+
 	test('selection and closing target the owning split group', () => {
 		const selected: string[] = [];
 		const closed: string[] = [];
@@ -61,7 +70,7 @@ suite('Pi chat title tabs', () => {
 		const selected: string[] = [];
 		const closed: string[] = [];
 		const tabs = createTabs(() => { }, session => selected.push(session.id), session => closed.push(session.id));
-		tabs.render({ ...groups[0], sessions: [...groups[0].sessions, session('third')] });
+		tabs.render({ ...groups[0], tabs: [...groups[0].tabs, session('third')] });
 		const buttons = tabs.element.querySelectorAll<HTMLButtonElement>('.pi-chat-tab-close');
 		for (const button of buttons) { button.click(); }
 		assert.deepStrictEqual({ labels: [...buttons].map(button => button.getAttribute('aria-label')), closed, selected }, { labels: ['Close book', 'Close custom-ide', 'Close third'], closed: ['book', 'custom-ide', 'third'], selected: [] });

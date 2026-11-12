@@ -7,7 +7,7 @@ import { $, addDisposableListener, append, clearNode } from '../../../../../base
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
+import { isPiChatSessionTab, PiChatTab } from '../../common/pi-chat-tab-types.js';
 import { PiChatGroup } from '../PiChatSelectionService.js';
 
 /** One group's tab strip, shared by the unsplit part title and split-pane headers. */
@@ -19,9 +19,9 @@ export class PiChatGroupTabs extends Disposable {
 	private activeTab: HTMLElement | undefined;
 
 	constructor(private readonly onNew: () => void,
-		private readonly onSelect: (session: PiChatSessionSummary, groupId: number) => void,
-		private readonly onClose: (session: PiChatSessionSummary, groupId: number) => void,
-		private readonly onDrag: (session: PiChatSessionSummary, groupId: number, event: DragEvent) => void,
+		private readonly onSelect: (tab: PiChatTab, groupId: number) => void,
+		private readonly onClose: (tab: PiChatTab, groupId: number) => void,
+		private readonly onDrag: (tab: PiChatTab, groupId: number, event: DragEvent) => void,
 		@IHoverService private readonly hover: IHoverService,
 	) {
 		super();
@@ -34,16 +34,19 @@ export class PiChatGroupTabs extends Disposable {
 		this.rendered.clear();
 		this.activeTab = undefined;
 		clearNode(this.tabs);
-		const entries = group.sessions;
+		const entries = group.tabs;
 		for (const [index, session] of entries.entries()) {
 			const active = session.id === group.activeSessionId;
 			const tab = append(this.tabs, $('li.action-item.pi-chat-group-tab', { role: 'tab', tabindex: active ? '0' : '-1', 'aria-selected': String(active), draggable: 'true' }));
 			tab.classList.toggle('checked', active);
 			if (active) { this.activeTab = tab; }
-			this.rendered.add(this.hover.setupDelayedHover(tab, { content: `${session.repoPath}\n${session.isDraft ? localize('piChat.draftTab', "New Chat") : new Date(session.lastMessageAt).toLocaleString()}` }));
-			append(tab, $('span.action-label.pi-chat-group-tab-label', {}, entries.filter(entry => entry.repoName === session.repoName).length > 1 ? `${session.repoName} · ${index + 1}` : session.repoName));
+			const label = isPiChatSessionTab(session) ? session.repoName : localize('piChat.newChatTab', "New Chat");
+			const hoverText = isPiChatSessionTab(session) ? `${session.repoPath}\n${session.isDraft ? localize('piChat.draftTab', "New Chat") : new Date(session.lastMessageAt).toLocaleString()}` : label;
+			this.rendered.add(this.hover.setupDelayedHover(tab, { content: hoverText }));
+			const duplicates = entries.filter(entry => isPiChatSessionTab(entry) && entry.repoName === label).length;
+			append(tab, $('span.action-label.pi-chat-group-tab-label', {}, duplicates > 1 ? `${label} · ${index + 1}` : label));
 			append(tab, $('span.active-item-indicator'));
-			const close = append(tab, $('button.pi-chat-tab-close.codicon.codicon-close', { type: 'button', tabindex: '-1', 'aria-label': localize('piChat.closeTab', "Close {0}", session.repoName) }));
+			const close = append(tab, $('button.pi-chat-tab-close.codicon.codicon-close-compact', { type: 'button', tabindex: '-1', 'aria-label': localize('piChat.closeTab', "Close {0}", label) }));
 			this.rendered.add(addDisposableListener(close, 'click', event => { event.stopPropagation(); this.onClose(session, group.id); }));
 			this.rendered.add(addDisposableListener(tab, 'click', () => this.onSelect(session, group.id)));
 			this.rendered.add(addDisposableListener(tab, 'auxclick', event => { if (event.button === 1) { event.preventDefault(); this.onClose(session, group.id); } }));

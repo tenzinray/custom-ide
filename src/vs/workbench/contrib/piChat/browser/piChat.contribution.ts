@@ -27,6 +27,7 @@ import { EditorExtensions } from '../../../common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { isPiChatSessionTab } from '../common/pi-chat-tab-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
 import { PiChatSessionEditor } from './PiChatSessionEditor.js';
 import { PiChatSessionEditorInput } from './PiChatSessionEditorInput.js';
@@ -141,7 +142,7 @@ class PiChatEditorResolver implements IWorkbenchContribution {
 		}, { singlePerResource: true }, {
 			createEditorInput: async ({ resource }) => {
 				const id = resource.path.slice(1);
-				const session = selection.groups.flatMap(group => group.sessions).find(session => session.id === id) ?? await sessions.findSession(id);
+				const session = selection.groups.flatMap(group => group.tabs).filter(isPiChatSessionTab).find(session => session.id === id) ?? await sessions.findSession(id);
 				if (!session) { throw new Error(`Pi session not found: ${resource.path}`); }
 				return { editor: new PiChatSessionEditorInput(session) };
 			},

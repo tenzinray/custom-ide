@@ -53,8 +53,13 @@ export class PiChatConversationContainer extends Disposable {
 			const draft = await this.instantiation.createInstance(PiChatSessionCreationService).createDraft(folder);
 			if (draft && !this._store.isDisposed) { this.selection.selectSession(draft, target); }
 		} else {
-			this.picker.value = this.instantiation.createInstance(PiChatRepoPicker, this.host, () => this.picker.clear(), target);
+			this.selection.openNewChat(target);
 		}
+	}
+
+	/** Retained popup entry point for a future caller; new-chat actions use inline setup instead. */
+	openRepoPicker(options: PiChatSessionOpenOptions = {}): void {
+		this.picker.value = this.instantiation.createInstance(PiChatRepoPicker, this.host, () => this.picker.clear(), options);
 	}
 
 	private updateGroups(): void {

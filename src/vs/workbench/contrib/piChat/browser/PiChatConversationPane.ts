@@ -31,7 +31,7 @@ import { PiChatFileLinkService } from './PiChatFileLinkService.js';
 import { decoratePiChatFileLinks } from './body/PiChatFileLinks.js';
 import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
-import { IPiChatSelectionService } from './PiChatSelectionService.js';
+import { IPiChatSelectionService, PiChatSessionOpenOptions } from './PiChatSelectionService.js';
 import { renderPiChatMessages } from './body/PiChatConversationBody.js';
 import { renderPiChatNewChat } from './body/PiChatNewChatBody.js';
 import { PiChatListenPlayback } from './body/PiChatListenPlayback.js';
@@ -74,6 +74,7 @@ export class PiChatConversationPane extends Disposable {
 	private messageCount = 120;
 	private renderPending = false;
 	private showOpenAILimits = true;
+	private sessionOpenOptions: PiChatSessionOpenOptions = {};
 
 	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService, @IHoverService private readonly hover: IHoverService) {
 		super();
@@ -135,6 +136,11 @@ export class PiChatConversationPane extends Disposable {
 		this._register(accounts.onDidChange(() => this.footerControls.value?.setAccounts(accounts.state)));
 		this.renderFooter();
 		this.render();
+	}
+
+	setSessionOpenOptions(options: PiChatSessionOpenOptions): void {
+		this.sessionOpenOptions = options;
+		if (this.emptyPicker.value) { this.emptyPicker.value.sessionOpenOptions = options; }
 	}
 
 	setVisible(visible: boolean): void {
@@ -262,6 +268,7 @@ export class PiChatConversationPane extends Disposable {
 				const empty = append(this.body, $('.pi-chat-empty'));
 				append(empty, $('p', {}, localize('piChat.emptyChooseRepo', "Choose a repo.")));
 				this.emptyPicker.value = this.instantiationService.createInstance(PiChatRepoPickerContainer, empty, undefined);
+				this.emptyPicker.value.sessionOpenOptions = this.sessionOpenOptions;
 			}
 		} else if (this.summary.isDraft && !this.history?.messages.length) {
 			this.renderedMessages.value = renderPiChatNewChat(this.body, this.summary, () => {

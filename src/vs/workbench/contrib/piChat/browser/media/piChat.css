@@ -221,7 +221,7 @@
 .pi-chat-group-tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
 .pi-chat-title-tabs .pi-chat-add-tab { display: flex; align-items: center; flex-shrink: 0; padding: 0 4px; }
 .pi-chat-tab-close, .pi-chat-group-action { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--vscode-cornerRadius-small); color: var(--vscode-foreground); background: transparent; cursor: pointer; }
-.pi-chat-tab-close { position: relative; z-index: 1; width: 20px; }
+.monaco-workbench .pi-chat-title-tabs .pi-chat-tab-close.codicon { position: relative; z-index: 1; width: 20px; font-size: 12px; }
 .pi-chat-tab-close:hover, .pi-chat-group-action:hover { background: var(--vscode-toolbar-hoverBackground); }
 .pi-chat-group-tab:focus-visible, .pi-chat-title-tabs button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .pi-chat-group-body { flex: 1; min-height: 0; overflow: hidden; }

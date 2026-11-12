@@ -10,6 +10,7 @@ import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { isPiChatSessionTab } from '../common/pi-chat-tab-types.js';
 import { PiChatConversationPane } from './PiChatConversationPane.js';
 import { fillPiChatDragData, PiChatGroupDropTarget } from './PiChatGroupDropTarget.js';
 import { IPiChatSelectionService, PiChatGroup, PiChatSessionOpenOptions } from './PiChatSelectionService.js';
@@ -42,7 +43,7 @@ export class PiChatConversationGroup extends Disposable implements IView {
 		this.sessions = instantiation.createInstance(PiChatSessionListService);
 		this.title = append(this.element, $('.title.has-composite-bar.pi-chat-group-title'));
 		this.tabs = this._register(instantiation.createInstance(PiChatGroupTabs, onNew,
-			(session, groupId) => selection.selectSession(session, { groupId }),
+			(tab, groupId) => selection.activateTab(groupId, tab.id),
 			(session, groupId) => selection.closeSession(groupId, session.id),
 			(session, groupId, event) => fillPiChatDragData(instantiation, session, event, groupId)));
 		this.title.appendChild(this.tabs.element);
@@ -58,9 +59,9 @@ export class PiChatConversationGroup extends Disposable implements IView {
 	}
 
 	private async drop(sessionId: string, sourceGroupId: number | undefined, direction: PiChatSessionOpenOptions['direction']): Promise<void> {
-		const session = this.selection.groups.flatMap(group => group.sessions).find(session => session.id === sessionId) ?? await this.sessions.findSession(sessionId);
+		const session = this.selection.groups.flatMap(group => group.tabs).find(session => session.id === sessionId) ?? await this.sessions.findSession(sessionId);
 		if (!session || this._store.isDisposed) { return; }
-		this.selection.moveSession(session, sourceGroupId, { groupId: this.id, direction });
+		this.selection.moveTab(session, sourceGroupId, { groupId: this.id, direction });
 	}
 
 	/** An unsplit group lends its strip to the part title; split groups render their own headers. */
@@ -82,19 +83,23 @@ export class PiChatConversationGroup extends Disposable implements IView {
 		this.state = group;
 		this.tabs.render(group);
 		for (const [id, pane] of this.panes) {
-			if (!group.sessions.some(session => session.id === id)) { pane.element.remove(); this.panes.deleteAndDispose(id); }
+			if (!group.tabs.some(tab => tab.id === id)) { pane.element.remove(); this.panes.deleteAndDispose(id); }
 		}
-		for (const session of group.sessions) {
+		for (const session of group.tabs) {
 			let pane = this.panes.get(session.id);
 			if (!pane) {
 				pane = this.instantiation.createInstance(PiChatConversationPane, this.body);
 				this.panes.set(session.id, pane);
-				void pane.show(session).catch(error => this.notifications.error(error));
+				if (isPiChatSessionTab(session)) { void pane.show(session).catch(error => this.notifications.error(error)); }
+				else { pane.setSessionOpenOptions({ groupId: this.id, replaceTabId: session.id }); }
 			}
 			pane.setShowOpenAILimits(this.showOpenAILimits && session.id === group.activeSessionId);
 			pane.element.hidden = session.id !== group.activeSessionId;
 		}
-		if (!group.activeSessionId && !this.emptyPane.value) { this.emptyPane.value = this.instantiation.createInstance(PiChatConversationPane, this.body); }
+		if (!group.activeSessionId && !this.emptyPane.value) {
+			this.emptyPane.value = this.instantiation.createInstance(PiChatConversationPane, this.body);
+			this.emptyPane.value.setSessionOpenOptions({ groupId: this.id });
+		}
 		if (this.emptyPane.value) { this.emptyPane.value.element.hidden = !!group.activeSessionId; }
 	}
 

@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
-import { PiChatSessionSummary } from '../common/pi-chat-types.js';
+import { isPiChatSessionTab, PiChatTab } from '../common/pi-chat-tab-types.js';
 import { PiChatSessionOpenOptions } from './PiChatSelectionService.js';
 import { PiChatSessionEditorInput } from './PiChatSessionEditorInput.js';
 
@@ -21,8 +21,10 @@ export function isPiChatDragEvent(event: DragEvent): boolean {
 }
 
 /** Keep standard editor drag data so dragging a chat into the Editor Area still works. */
-export function fillPiChatDragData(instantiation: IInstantiationService, session: PiChatSessionSummary, event: DragEvent, groupId?: number): void {
-	instantiation.invokeFunction(accessor => fillEditorsDragData(accessor, [PiChatSessionEditorInput.resourceForSession(session.id)], event));
+export function fillPiChatDragData(instantiation: IInstantiationService, session: PiChatTab, event: DragEvent, groupId?: number): void {
+	if (isPiChatSessionTab(session)) {
+		instantiation.invokeFunction(accessor => fillEditorsDragData(accessor, [PiChatSessionEditorInput.resourceForSession(session.id)], event));
+	}
 	event.dataTransfer?.setData(sessionTransfer, session.id);
 	if (groupId !== undefined) { event.dataTransfer?.setData(groupTransfer, String(groupId)); }
 }

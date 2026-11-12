@@ -23,6 +23,7 @@ import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { isPiChatSessionTab } from '../common/pi-chat-tab-types.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 import { PiChatCreatedSession } from '../common/pi-chat-run-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
@@ -138,7 +139,7 @@ export class PiChatSessionsView extends ViewPane {
 
 	private renderSessions(): void {
 		if (!this.list) { return; }
-		const openSessions = this.selection.groups.flatMap(group => group.sessions);
+		const openSessions = this.selection.groups.flatMap(group => group.tabs).filter(isPiChatSessionTab);
 		const drafts = [...new Map(openSessions.filter(session => session.isDraft).map(session => [session.id, session])).values()];
 		if (this.draft && !openSessions.some(session => session.id === this.draft?.id)) { drafts.push(this.draft); }
 		const draftIds = new Set(drafts.map(session => session.id));
