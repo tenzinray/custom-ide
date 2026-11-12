@@ -780,7 +780,7 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
 		instantiationService.stub(IWorkspaceContextService, 'isInsideWorkspace', true);
 		const supported = aLocalExtension2('pub.builtinSupported', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: true } } }, { type: ExtensionType.System });
-		const unsupported = aLocalExtension2('pub.builtinUnsupported', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false } } }, { type: ExtensionType.System });
+		const unsupported = aLocalExtension2('pub.builtinUnsupported', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'Requires workspace trust' } } }, { type: ExtensionType.System });
 		const workspaceProvided = aLocalExtension2('pub.workspaceProvided', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: true } } });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 		assert.deepStrictEqual([supported, unsupported, workspaceProvided].map(extension => testObject.getEnablementState(extension)), [

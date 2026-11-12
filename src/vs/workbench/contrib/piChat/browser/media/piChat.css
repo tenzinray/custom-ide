@@ -163,7 +163,7 @@
 .pi-chat-account-picker:disabled { cursor: default; }
 .pi-chat-account-control:has(select:focus-visible) { outline: 1px solid var(--vscode-focusBorder); }
 .pi-chat-account-picker option { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); }
-.pi-chat-repo-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pi-chat-repo-label { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
 .pi-chat-composer-note strong { color: var(--vscode-foreground); font-weight: 500; }
 .pi-chat-repo-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: #0008; color: var(--vscode-foreground); font-family: var(--vscode-font-family); }
 .pi-chat-repo-picker { width: min(100%, 480px); max-height: min(650px, 85vh); display: flex; flex-direction: column; gap: 16px; padding: 23px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 12px; background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background)); box-shadow: 0 25px 70px #0008; }
