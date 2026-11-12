@@ -26,6 +26,9 @@ import { IChatSpeechToTextService } from '../../chat/browser/speechToText/chatSp
 import { PiChatSessionHistory, PiChatSessionSummary, PiChatMessage } from '../common/pi-chat-types.js';
 import { PiChatContextUsage } from '../common/pi-chat-context-usage-types.js';
 import { PiChatQueuedPrompt, PiChatRunEvent, PiChatRunSnapshot } from '../common/pi-chat-run-types.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { PiChatFileLinkService } from './PiChatFileLinkService.js';
+import { decoratePiChatFileLinks } from './body/PiChatFileLinks.js';
 import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
 import { IPiChatSelectionService } from './PiChatSelectionService.js';
@@ -53,6 +56,7 @@ export class PiChatConversationPane extends Disposable {
 	private readonly emptyPicker = this._register(new MutableDisposable<PiChatRepoPickerContainer>());
 	private readonly playback = this._register(new MutableDisposable<PiChatListenPlayback>());
 	private readonly loader: PiChatSessionLoadService;
+	private readonly fileLinks: PiChatFileLinkService;
 	private readonly commands: ICommandService;
 	private readonly selection: IPiChatSelectionService;
 	private readonly inputCache: PiChatInputCacheService;
@@ -71,9 +75,10 @@ export class PiChatConversationPane extends Disposable {
 	private renderPending = false;
 	private showOpenAILimits = true;
 
-	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService) {
+	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService, @IHoverService private readonly hover: IHoverService) {
 		super();
 		this.loader = instantiationService.createInstance(PiChatSessionLoadService);
+		this.fileLinks = instantiationService.createInstance(PiChatFileLinkService);
 		this.commands = instantiationService.invokeFunction(accessor => accessor.get(ICommandService));
 		this.selection = instantiationService.invokeFunction(accessor => accessor.get(IPiChatSelectionService));
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
@@ -272,7 +277,7 @@ export class PiChatConversationPane extends Disposable {
 			}, (text, button, response) => {
 				if (this.playback.value?.button === button) { this.playback.value.onClick(); }
 				else { this.playback.value = new PiChatListenPlayback(button, response, this.commands, text); }
-			}, this.markdown, this.copy, this.queued, id => { void this.cancelQueued(id); }, id => { void this.sendQueuedNow(id); });
+			}, this.markdown, this.copy, this.queued, id => { void this.cancelQueued(id); }, id => { void this.sendQueuedNow(id); }, this.summary.repoPath, (element, disposables) => decoratePiChatFileLinks(element, this.summary!.repoPath, this.fileLinks, this.hover, disposables));
 		}
 		this.bodyScroll.afterRender(follow, previousTop);
 	}

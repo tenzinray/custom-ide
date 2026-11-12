@@ -19,7 +19,8 @@ export function renderPiChatTool(turn: HTMLElement, message: Extract<PiChatMessa
 	const summary = append(row, $(message.output ? 'summary' : 'div.pi-chat-tool-summary'));
 	append(summary, $(`span.codicon.codicon-${icon}`, { 'aria-hidden': 'true' }));
 	append(summary, $('strong', {}, label));
-	append(summary, $('span.pi-chat-activity-target', { title: message.input }, message.input));
+	const target = append(summary, $('span.pi-chat-activity-target', { title: message.input }, message.input));
+	if (message.toolName === 'read' || message.toolName === 'edit' || message.toolName === 'write') { target.setAttribute('data-pi-file-path', ''); }
 	const stateIcon = message.state === 'failed' ? 'error' : message.state === 'running' ? 'loading' : 'check';
 	append(summary, $(`span.pi-chat-activity-state.codicon.codicon-${stateIcon}`, { title: message.state, 'aria-label': message.state }));
 	if (message.output) { append(row, $('pre.pi-chat-activity-output', {}, message.output)); }

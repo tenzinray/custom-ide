@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, getWindow } from '../../../../../base/browser/dom.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -12,10 +11,11 @@ import { PiChatMessage, PiChatSessionHistory } from '../../common/pi-chat-types.
 import { PiChatQueuedPrompt } from '../../common/pi-chat-run-types.js';
 import { renderPiChatQueuedPrompts } from './PiChatQueuedPrompts.js';
 import { PiChatMessageCopy } from './PiChatMessageCopy.js';
+import { renderPiChatFileMarkdown } from './PiChatFileLinks.js';
 import { renderPiChatTool } from './PiChatToolMessage.js';
 
 /** Conversation body; saved and live assistant events group into Pi-style turns. */
-export function renderPiChatMessages(container: HTMLElement, history: PiChatSessionHistory, count: number, onLoadEarlier: () => void, onListen: (text: string, button: HTMLButtonElement, response: HTMLElement) => void, markdown: IMarkdownRendererService, copy: PiChatMessageCopy, queued: readonly PiChatQueuedPrompt[], onCancel: (id: string) => void, onSendNow: (id: string) => void): DisposableStore {
+export function renderPiChatMessages(container: HTMLElement, history: PiChatSessionHistory, count: number, onLoadEarlier: () => void, onListen: (text: string, button: HTMLButtonElement, response: HTMLElement) => void, markdown: IMarkdownRendererService, copy: PiChatMessageCopy, queued: readonly PiChatQueuedPrompt[], onCancel: (id: string) => void, onSendNow: (id: string) => void, repoPath: string, linkFiles: (element: HTMLElement, disposables: DisposableStore) => void): DisposableStore {
 	const disposables = new DisposableStore();
 	clearNode(container);
 	const messages = history.messages.slice(-count);
@@ -48,17 +48,18 @@ export function renderPiChatMessages(container: HTMLElement, history: PiChatSess
 			const row = append(list, $('.pi-chat-message-row'));
 			assistantTurn = append(row, $('.pi-chat-assistant-turn'));
 		}
-		renderAssistantMessage(assistantTurn, message, onListen, markdown, copy, disposables);
+		renderAssistantMessage(assistantTurn, message, onListen, markdown, copy, disposables, repoPath);
 	}
+	linkFiles(list, disposables);
 	renderPiChatQueuedPrompts(list, queued, onCancel, onSendNow);
 	return disposables;
 }
 
-function renderAssistantMessage(turn: HTMLElement, message: Exclude<PiChatMessage, { role: 'user' }>, onListen: (text: string, button: HTMLButtonElement, response: HTMLElement) => void, markdown: IMarkdownRendererService, copy: PiChatMessageCopy, disposables: DisposableStore): void {
+function renderAssistantMessage(turn: HTMLElement, message: Exclude<PiChatMessage, { role: 'user' }>, onListen: (text: string, button: HTMLButtonElement, response: HTMLElement) => void, markdown: IMarkdownRendererService, copy: PiChatMessageCopy, disposables: DisposableStore, repoPath: string): void {
 	if (message.kind === 'text') {
 		const response = append(turn, $('.pi-chat-assistant-response'));
 		const text = append(response, $('.pi-chat-assistant-text'));
-		const rendered = disposables.add(markdown.render(new MarkdownString(message.content)));
+		const rendered = disposables.add(renderPiChatFileMarkdown(markdown, message.content, repoPath));
 		text.appendChild(rendered.element);
 		if (message.content.trim()) {
 			const actions = append(response, $('.pi-chat-response-actions'));

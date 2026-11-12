@@ -91,7 +91,9 @@
 .pi-chat-assistant-text p:last-child { margin-bottom: 0; }
 .pi-chat-assistant-text pre { overflow-x: auto; padding: 14px; border: 1px solid var(--vscode-panel-border); border-radius: 10px; background: var(--vscode-editorWidget-background); }
 .pi-chat-assistant-text code { padding: 2px 5px; border-radius: 4px; background: var(--vscode-editorWidget-background); color: var(--vscode-textPreformat-foreground); }
-.pi-chat-assistant-text a { color: var(--vscode-textLink-foreground); }
+.pi-chat-assistant-text a, .pi-chat-file-link { color: var(--vscode-textLink-foreground); }
+.pi-chat-file-link { cursor: pointer; }
+.pi-chat-file-link:hover { text-decoration: underline; }
 .pi-chat-activity-row { width: 100%; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.35; }
 .pi-chat-activity-row summary, .pi-chat-tool-summary { display: flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 9px; border-radius: 7px; cursor: pointer; list-style: none; }
 .pi-chat-activity-row summary:hover { background: var(--vscode-list-hoverBackground); }
