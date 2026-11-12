@@ -43,7 +43,7 @@ suite('Explorer Projects', () => {
 		await fileService.createFolder(joinPath(root, 'not-a-repo'));
 		await fileService.createFolder(joinPath(root, 'not-a-repo', 'nested', '.git'));
 		const instantiation = workbenchInstantiationService({ fileService: () => fileService, pathService: () => new TestPathService(home) }, store);
-		let menuActions: IAction[] = [];
+		let menuActions: readonly IAction[] = [];
 		const commands: [string, string | string[]][] = [];
 		const addedFolders: IWorkspaceFolderCreationData[][] = [];
 		instantiation.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => { menuActions = delegate.getActions?.() ?? []; });

@@ -52,7 +52,7 @@ export class PiChatSessionListService {
 			const batch = files.slice(index, index + limit - sessions.length);
 			index += batch.length;
 			const page = await Promise.all(batch.map(file => this.getSummary(file)));
-			sessions.push(...page.filter(summary => summary !== undefined && !pinnedIds.has(summary.id)));
+			sessions.push(...page.filter((summary): summary is PiChatSessionSummary => summary !== undefined && !pinnedIds.has(summary.id)));
 		}
 		return { sessions: sessions.sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)), hasMore: index < files.length };
 	}
