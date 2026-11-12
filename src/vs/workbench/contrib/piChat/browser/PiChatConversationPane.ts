@@ -137,6 +137,10 @@ export class PiChatConversationPane extends Disposable {
 		this.render();
 	}
 
+	setVisible(visible: boolean): void {
+		this.bodyScroll.setVisible(visible);
+	}
+
 	setShowOpenAILimits(show: boolean): void {
 		if (show === this.showOpenAILimits) { return; }
 		this.showOpenAILimits = show;

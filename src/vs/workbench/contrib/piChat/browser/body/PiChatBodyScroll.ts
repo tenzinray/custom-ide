@@ -15,6 +15,8 @@ export class PiChatBodyScroll extends Disposable {
 	private readonly button: HTMLButtonElement;
 	private following = true;
 	private enabled = true;
+	private visible = true;
+	private hiddenTop = 0;
 	private renderId = 0;
 
 	constructor(shell: HTMLElement, private readonly body: HTMLElement) {
@@ -27,6 +29,7 @@ export class PiChatBodyScroll extends Disposable {
 		append(this.button, $('span.codicon.codicon-arrow-down', { 'aria-hidden': 'true' }));
 		this.button.hidden = true;
 		this._register(addDisposableListener(body, 'scroll', () => {
+			if (!this.visible) { return; }
 			this.following = this.distanceFromBottom() <= bottomDistanceThreshold;
 			this.updateButton();
 		}));
@@ -39,6 +42,18 @@ export class PiChatBodyScroll extends Disposable {
 
 	get shouldFollow(): boolean { return this.following; }
 
+	/** Editor tabs detach their DOM when hidden; capture before detachment and restore after reattachment. */
+	setVisible(visible: boolean): void {
+		if (visible === this.visible) { return; }
+		if (!visible) {
+			this.hiddenTop = this.body.scrollTop;
+			this.renderId++;
+		}
+		this.visible = visible;
+		if (visible) { this.afterRender(this.following, this.hiddenTop); }
+		else { this.updateButton(); }
+	}
+
 	setEnabled(enabled: boolean): void {
 		if (this.enabled === enabled) { return; }
 		this.enabled = enabled;
@@ -49,11 +64,12 @@ export class PiChatBodyScroll extends Disposable {
 	reset(): void {
 		this.renderId++;
 		this.following = true;
+		this.hiddenTop = 0;
 		this.button.hidden = true;
 	}
 
 	afterRender(follow: boolean, previousTop: number): void {
-		if (!this.enabled) { return; }
+		if (!this.enabled || !this.visible) { return; }
 		const renderId = ++this.renderId;
 		this.body.scrollTop = follow ? this.body.scrollHeight : previousTop;
 		this.updateButton();
@@ -71,6 +87,6 @@ export class PiChatBodyScroll extends Disposable {
 	}
 
 	private updateButton(): void {
-		this.button.hidden = !this.enabled || this.body.clientHeight === 0 || this.distanceFromBottom() <= bottomDistanceThreshold;
+		this.button.hidden = !this.enabled || !this.visible || this.body.clientHeight === 0 || this.distanceFromBottom() <= bottomDistanceThreshold;
 	}
 }

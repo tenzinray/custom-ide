@@ -45,6 +45,11 @@ export class PiChatSessionEditor extends EditorPane {
 		return this.conversation?.insertFiles(resources) ?? false;
 	}
 
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this.conversation?.setVisible(visible);
+	}
+
 	override layout(_dimension: Dimension): void { }
 
 	override async setInput(input: PiChatSessionEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
