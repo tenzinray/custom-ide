@@ -42,6 +42,41 @@ suite('PreviewHub presentation', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	test('commands stay hidden until the app title is clicked and processes preserve disclosure state', () => {
+		const host = mainWindow.document.createElement('div');
+		const card = store.add(new PreviewHubAppCard(host, previewHubApps[0], () => {}, () => {}, () => {}, () => {}));
+		const command = host.querySelector<HTMLElement>('.preview-hub-command')!;
+		const title = host.querySelector<HTMLButtonElement>('.preview-hub-app-title')!;
+		const hiddenInitially = command.hidden;
+		title.click();
+		const shown = !command.hidden && title.getAttribute('aria-expanded') === 'true';
+		title.click();
+		const state: PreviewHubAppState = {
+			id: 'brain-wave', phase: 'running', launcherLog: '/log', components: [{ id: 'frontend', running: true }], previewUrl: 'http://localhost:5173',
+			processes: [
+				{ pid: 101, componentId: 'frontend', cmd: 'node vite.js', urls: ['http://localhost:5173'] },
+				{ pid: 202, componentId: 'frontend', cmd: 'node vite.js --port 5174', urls: ['http://localhost:5174'] },
+			],
+		};
+		card.update(state, false);
+		const details = host.querySelector<HTMLDetailsElement>('.preview-hub-processes')!;
+		details.open = true;
+		card.update(state, false);
+		assert.deepStrictEqual({ hiddenInitially, shown, hiddenAgain: command.hidden, expanded: details.open, count: details.querySelector('summary')?.textContent, processes: [...host.querySelectorAll('.preview-hub-process')].map(row => row.textContent), runningIcon: !!host.querySelector('.preview-hub-phase .codicon-pass-filled'), separator: !!host.querySelector('.preview-hub-log-separator') }, {
+			hiddenInitially: true, shown: true, hiddenAgain: true, expanded: true, count: 'Processes & Ports (2)',
+			processes: ['Frontend / Vite API · PID 101node vite.jshttp://localhost:5173', 'Frontend / Vite API · PID 202node vite.js --port 5174http://localhost:5174'], runningIcon: true, separator: true,
+		});
+	});
+
+	test('Lucent and Pide never offer a browser preview or simulator launch button', () => {
+		const actions = previewHubApps.filter(app => app.id !== 'brain-wave').map(app => {
+			const host = mainWindow.document.createElement('div');
+			store.add(new PreviewHubAppCard(host, app, () => {}, () => {}, () => { throw new Error('Must not open a preview'); }, () => {}));
+			return [...host.querySelectorAll('.preview-hub-actions button')].map(button => button.textContent);
+		});
+		assert.deepStrictEqual(actions, [['Start', 'Stop'], ['Start', 'Stop']]);
+	});
+
 	test('titlebar stays icon-only and toggles the checked state used to color the cup', () => {
 		const host = mainWindow.document.createElement('div');
 		const action = store.add(new Action('caffeine', 'Caffeinate'));

@@ -13,7 +13,7 @@ import { ILogService } from '../../log/common/log.js';
 import { previewHubApps, PreviewHubAppId } from '../common/previewHubApps.js';
 import { previewHubLauncherLogPath } from '../common/previewHub.js';
 import { PreviewHubAppState } from '../common/preview-hub-types.js';
-import { findPreviewHubProcesses, getPreviewHubProcessLog, getPreviewHubUrl, readPreviewHubProcesses, stopPreviewHubProcesses } from './previewHubProcesses.js';
+import { findPreviewHubProcesses, getPreviewHubProcessDetails, getPreviewHubProcessLog, readPreviewHubProcesses, stopPreviewHubProcesses } from './previewHubProcesses.js';
 
 /** Exact local app processes and launch output. Existing unrelated processes are never blanket-killed. */
 export class PreviewHubProcessService extends Disposable {
@@ -36,11 +36,13 @@ export class PreviewHubProcessService extends Disposable {
 			const matches = await findPreviewHubProcesses(app, root, table);
 			const components = app.components.map(component => ({ id: component.id, running: !!matches.get(component.id)?.length }));
 			const active = components.some(component => component.running);
+			const processes = await getPreviewHubProcessDetails(app, matches);
 			return {
 				id: app.id, components, launcherLog: join(root, previewHubLauncherLogPath),
 				watcherLog: await getPreviewHubProcessLog(matches.get('watcher')?.[0]),
 				phase: this.busy.get(app.id) ?? (this.children.has(app.id) && !components.every(component => component.running) ? 'starting' : active ? 'running' : this.errors.has(app.id) ? 'error' : 'stopped'),
-				error: this.errors.get(app.id), previewUrl: await getPreviewHubUrl(matches.get('frontend') ?? []),
+				error: this.errors.get(app.id), processes,
+				previewUrl: app.id === 'brain-wave' ? processes.find(entry => entry.urls.length)?.urls[0] : undefined,
 			};
 		}));
 	}

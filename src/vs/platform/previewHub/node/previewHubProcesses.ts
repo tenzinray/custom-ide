@@ -7,6 +7,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ProcessItem } from '../../../base/common/processes.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
+import { PreviewHubProcessState } from '../common/preview-hub-types.js';
 import { previewHubApps } from '../common/previewHubApps.js';
 
 const exec = promisify(execFile);
@@ -70,11 +71,30 @@ export async function getPreviewHubProcessLog(entry: PreviewHubProcess | undefin
 	} catch { return undefined; }
 }
 
-export async function getPreviewHubUrl(processes: readonly PreviewHubProcess[]): Promise<string | undefined> {
-	if (!processes.length) { return undefined; }
+/** Preserve PID ownership when several local servers are listening at once. */
+export function parsePreviewHubListeners(output: string): Map<number, string[]> {
+	const listeners = new Map<number, string[]>();
+	let pid: number | undefined;
+	for (const line of output.split('\n')) {
+		if (/^p\d+$/.test(line)) { pid = Number(line.slice(1)); }
+		const port = /^n(?:127\.0\.0\.1|localhost|\*|\[::1\]|\[::\]):(?<port>\d+)$/.exec(line)?.groups?.port;
+		if (pid !== undefined && port) {
+			const urls = listeners.get(pid) ?? [];
+			const url = `http://localhost:${port}`;
+			if (!urls.includes(url)) { urls.push(url); }
+			listeners.set(pid, urls);
+		}
+	}
+	return listeners;
+}
+
+export async function getPreviewHubProcessDetails(app: typeof previewHubApps[number], matches: ReadonlyMap<string, readonly PreviewHubProcess[]>): Promise<PreviewHubProcessState[]> {
+	const processes = app.components.flatMap(component => (matches.get(component.id) ?? []).map(entry => ({ ...entry, componentId: component.id })));
+	if (!processes.length) { return []; }
+	let listeners = new Map<number, string[]>();
 	try {
 		const { stdout } = await exec('/usr/sbin/lsof', ['-a', '-p', processes.map(entry => entry.pid).join(','), '-iTCP', '-sTCP:LISTEN', '-Fn'], { timeout: 3000 });
-		const port = /^n(?:127\.0\.0\.1|localhost|\*|\[::1\]):(?<port>\d+)$/m.exec(stdout)?.groups?.port;
-		return port ? `http://localhost:${port}` : undefined;
-	} catch { return undefined; }
+		listeners = parsePreviewHubListeners(stdout);
+	} catch { /* A running watcher or launcher may have no listening sockets. Keep its PID visible. */ }
+	return processes.map(entry => ({ pid: entry.pid, cmd: entry.cmd, componentId: entry.componentId, urls: listeners.get(entry.pid) ?? [] }));
 }

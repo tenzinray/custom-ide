@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { previewHubApps } from '../../common/previewHubApps.js';
 import { PreviewHubProcessService } from '../../node/PreviewHubProcessService.js';
-import { findPreviewHubProcesses, stopPreviewHubProcesses } from '../../node/previewHubProcesses.js';
+import { findPreviewHubProcesses, parsePreviewHubListeners, stopPreviewHubProcesses } from '../../node/previewHubProcesses.js';
 
 suite('PreviewHubProcesses', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,6 +31,11 @@ suite('PreviewHubProcesses', () => {
 		const cwd = async (pid: number) => pid === 12 ? '/projects/lucent' : pid === 14 ? '/projects/custom-ide' : '/projects/other';
 		const results = await Promise.all(previewHubApps.map(async app => [...await findPreviewHubProcesses(app, `/projects/${app.folder}`, table, cwd)].map(([component, entries]) => [component, entries.map(entry => entry.pid)])));
 		assert.deepStrictEqual(results, [[['frontend', [10]]], [['frontend', [12, 13]]], [['watcher', [14]], ['app', [15]]]]);
+	});
+
+	test('keeps every listening port tied to its PID, deduplicates IPv4/IPv6, and ignores nonlocal addresses', () => {
+		const listeners = parsePreviewHubListeners('p101\nf20\nn127.0.0.1:5173\nn[::1]:5173\nn*:9229\np202\nf21\nn[::]:5174\nn192.168.1.2:9999\np303\nf22\nnlocalhost:8081\n');
+		assert.deepStrictEqual([...listeners], [[101, ['http://localhost:5173', 'http://localhost:9229']], [202, ['http://localhost:5174']], [303, ['http://localhost:8081']]]);
 	});
 
 	test('refuses to terminate the Pide instance hosting Preview Hub', async () => {
@@ -55,8 +60,8 @@ suite('PreviewHubProcesses', () => {
 			const second = (await service.snapshot())[0];
 			await service.stop('brain-wave');
 			const stopped = (await service.snapshot())[0];
-			assert.deepStrictEqual({ running: first.phase, sameUrl: first.previewUrl === second.previewUrl, hasUrl: !!first.previewUrl, stopped: stopped.phase, component: stopped.components[0].running }, {
-				running: 'running', sameUrl: true, hasUrl: true, stopped: 'stopped', component: false,
+			assert.deepStrictEqual({ running: first.phase, sameUrl: first.previewUrl === second.previewUrl, hasUrl: !!first.previewUrl, hasPid: !!first.processes?.some(entry => entry.pid > 0 && entry.urls.includes(first.previewUrl!)), stopped: stopped.phase, component: stopped.components[0].running }, {
+				running: 'running', sameUrl: true, hasUrl: true, hasPid: true, stopped: 'stopped', component: false,
 			});
 		} finally {
 			await service.stop('brain-wave').catch(() => {});

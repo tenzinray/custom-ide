@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProcessItem } from '../../../base/common/processes.js';
 import { PreviewHubAppId, PreviewHubComponentId } from './previewHubApps.js';
 
 export type PreviewHubPhase = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
+
+export interface PreviewHubProcessState extends Pick<ProcessItem, 'pid' | 'cmd'> {
+	readonly componentId: PreviewHubComponentId;
+	readonly urls: readonly string[];
+}
 
 export interface PreviewHubAppState {
 	readonly id: PreviewHubAppId;
@@ -15,6 +21,7 @@ export interface PreviewHubAppState {
 	readonly launcherLog: string;
 	readonly watcherLog?: string;
 	readonly previewUrl?: string;
+	readonly processes?: readonly PreviewHubProcessState[];
 }
 
 export interface PreviewHubCaffeineState {
