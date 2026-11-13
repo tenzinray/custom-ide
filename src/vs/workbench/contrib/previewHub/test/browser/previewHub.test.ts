@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action } from '../../../../../base/common/actions.js';
+import { PreviewHubCaffeineButton } from '../../browser/header/PreviewHubCaffeineButton.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { previewHubApps } from '../../../../../platform/previewHub/common/previewHubApps.js';
@@ -38,6 +40,24 @@ suite('PreviewHub presentation', () => {
 		card.update({ id: 'brain-wave', phase: 'starting', launcherLog: '/log', components: [{ id: 'frontend', running: false }] }, true);
 		for (const button of host.querySelectorAll<HTMLButtonElement>('.preview-hub-actions button')) { button.click(); }
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('titlebar always shows On or Off and updates its pressed and highlighted state', () => {
+		const host = mainWindow.document.createElement('div');
+		const action = store.add(new Action('caffeine', 'Caffeinate'));
+		action.checked = false;
+		const button = store.add(new PreviewHubCaffeineButton(action, {}));
+		button.render(host);
+		const read = () => ({ text: host.textContent, pressed: host.querySelector('[role="button"]')?.getAttribute('aria-pressed'), highlighted: !!host.querySelector('.checked'), coffee: !!host.querySelector('.codicon-coffee') });
+		const off = read();
+		action.checked = true;
+		const on = read();
+		action.checked = false;
+		assert.deepStrictEqual({ off, on, offAgain: read() }, {
+			off: { text: 'Caffeine Off', pressed: 'false', highlighted: false, coffee: true },
+			on: { text: 'Caffeine On', pressed: 'true', highlighted: true, coffee: true },
+			offAgain: off,
+		});
 	});
 
 	test('caffeine header reflects actual shared state and battery cutoff without inventing local state', () => {

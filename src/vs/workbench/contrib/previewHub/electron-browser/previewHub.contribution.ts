@@ -7,6 +7,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { PreviewHubCaffeineButton } from '../browser/header/PreviewHubCaffeineButton.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -55,8 +57,10 @@ if (isMacintosh) {
 
 	class PreviewHubCaffeineContribution extends Disposable {
 		static readonly ID = 'workbench.contrib.previewHubCaffeine';
-		constructor(@IPreviewHubService hub: IPreviewHubService, @IContextKeyService contextKeys: IContextKeyService, @INotificationService notifications: INotificationService) {
+		constructor(@IPreviewHubService hub: IPreviewHubService, @IContextKeyService contextKeys: IContextKeyService, @INotificationService notifications: INotificationService, @IActionViewItemService actionViewItems: IActionViewItemService) {
 			super();
+			this._register(actionViewItems.register(MenuId.TitleBarAdjacentCenter, previewHubCaffeineCommand,
+				(action, options) => new PreviewHubCaffeineButton(action, options), undefined));
 			const enabled = caffeineEnabled.bindTo(contextKeys);
 			let wasEnabled = false;
 			this._register(hub.onDidChange(state => {
