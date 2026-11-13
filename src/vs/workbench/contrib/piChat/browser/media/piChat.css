@@ -17,6 +17,9 @@
 .pi-chat-session-button:hover, .pi-chat-session-button:focus-visible { color: var(--vscode-foreground); background: var(--vscode-list-hoverBackground); }
 .pi-chat-session-button.pi-chat-session-focused { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); box-shadow: inset 2px 0 var(--vscode-focusBorder); }
 .pi-chat-session-details { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pi-chat-session-name.pi-chat-session-renaming, .pi-chat-group-tab-label.pi-chat-session-renaming { display: inline-block; min-width: 0; overflow: visible; }
+.pi-chat-session-renaming .monaco-inputbox { width: 100%; min-width: 100px; }
+.pi-chat-session-renaming .monaco-inputbox input { font: inherit; }
 .pi-chat-session-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--vscode-foreground); font-weight: 500; }
 .pi-chat-session-timestamp { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .pi-chat-session-date, .pi-chat-session-age { font-size: 10px; }

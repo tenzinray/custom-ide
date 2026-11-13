@@ -11,10 +11,16 @@ import { PiChatContextUsage } from './pi-chat-context-usage-types.js';
 export interface PiChatSessionSummary {
 	readonly id: string;
 	readonly repoName: string;
+	readonly sessionName?: string;
 	readonly repoPath: string;
 	readonly lastMessageAt: string;
 	readonly sessionFile: URI;
 	readonly isDraft?: boolean;
+}
+
+/** One display-name fallback shared by session lists, tabs, and editor titles. */
+export function getPiChatSessionLabel(session: PiChatSessionSummary): string {
+	return session.sessionName || session.repoName;
 }
 
 /** Read-only saved-session display contract, matching Pi UI's message kinds. */

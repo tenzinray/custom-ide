@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getPiChatSessionLabel } from '../common/pi-chat-types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -24,7 +25,7 @@ export class PiChatConversationView extends ViewPane {
 	private conversation: PiChatConversationContainer | undefined;
 
 	override get singleViewPaneContainerTitle(): string {
-		return this.selection?.selectedSession?.repoName ?? 'Pi Conversation';
+		return this.selection?.selectedSession ? getPiChatSessionLabel(this.selection.selectedSession) : 'Pi Conversation';
 	}
 
 	constructor(
@@ -75,7 +76,7 @@ export class PiChatConversationView extends ViewPane {
 		this.updateTitle(this.singleViewPaneContainerTitle);
 		const container = this.viewDescriptorService.getViewContainerByViewId(PiChatConversationView.ID);
 		if (container) {
-			this.viewDescriptorService.getViewContainerModel(container).setTitleOverride(this.selection.selectedSession?.repoName);
+			this.viewDescriptorService.getViewContainerModel(container).setTitleOverride(this.selection.selectedSession ? getPiChatSessionLabel(this.selection.selectedSession) : undefined);
 		}
 	}
 }

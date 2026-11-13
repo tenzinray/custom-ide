@@ -101,10 +101,11 @@ export async function createPiChatSession(cwd: string): Promise<PiChatCreatedSes
 }
 
 /** Recreate an unsaved Pi draft using its original session ID after a reload. */
-export async function restorePiChatDraft(id: string, cwd: string): Promise<PiChatCreatedSession> {
+export async function restorePiChatDraft(id: string, cwd: string, sessionName?: string): Promise<PiChatCreatedSession> {
 	if (!/^[a-f0-9-]{36}$/.test(id) || typeof cwd !== 'string' || !cwd) { throw new Error('Invalid Pi draft.'); }
 	await checkProjectDirectory(cwd);
 	const run = runs.get(id) ?? await openSession(id, undefined, cwd);
+	if (typeof sessionName === 'string' && sessionName.trim()) { run.session.setSessionName(sessionName); }
 	return { id: run.session.sessionId, sessionFile: run.session.sessionFile! };
 }
 
@@ -118,6 +119,26 @@ async function getRun(id: string, file: string, cwd: string): Promise<Run> {
 		void pending.finally(() => opening.delete(id)).catch(() => {});
 	}
 	return pending;
+}
+
+/** Use Pi's native name entry, reusing a live manager so streaming cannot overwrite it. */
+export async function renamePiChatSession(id: string, file: string, cwd: string, name: string): Promise<void> {
+	if (typeof name !== 'string' || !name.trim()) { throw new Error(vscode.l10n.t('Enter a chat name.')); }
+	await opening.get(id);
+	let run = runs.get(id);
+	let path: string | undefined;
+	if (!run) {
+		path = await checkSessionFile(id, file, cwd);
+		// A send can begin while filesystem validation is awaiting I/O.
+		await opening.get(id);
+		run = runs.get(id);
+	}
+	if (run) {
+		if (run.session.sessionFile !== file || run.session.sessionManager.getCwd() !== cwd) { throw new Error('Pi session does not match its repository.'); }
+		run.session.setSessionName(name.trim());
+	} else {
+		SessionManager.open(path!).appendSessionInfo(name.trim());
+	}
 }
 
 function emit(run: Run, event: PiChatRunEvent): void {

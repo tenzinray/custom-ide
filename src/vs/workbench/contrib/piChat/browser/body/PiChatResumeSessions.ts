@@ -6,7 +6,7 @@
 import { $, addDisposableListener, append, getWindow } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
+import { getPiChatSessionLabel, PiChatSessionSummary } from '../../common/pi-chat-types.js';
 import { createPiChatSessionLoadMoreButton, renderPiChatSessionDetails } from '../sidebar/pi-chat-session-list-items.js';
 
 /** Resume-section presentation only; the picker container owns discovery, paging, and selection. */
@@ -60,7 +60,7 @@ export class PiChatResumeSessions extends Disposable {
 		this.element.replaceChildren();
 		this.element.setAttribute('aria-busy', String(this.loading));
 		append(this.element, $('div.pi-chat-resume-heading.pi-chat-repo-caption', { role: 'heading', 'aria-level': '3' }, localize('piChat.resumeSession', "Resume Session")));
-		const sessions = this.sessions.filter(session => session.repoName.toLocaleLowerCase().includes(query) || session.repoPath.toLocaleLowerCase().includes(query));
+		const sessions = this.sessions.filter(session => getPiChatSessionLabel(session).toLocaleLowerCase().includes(query) || session.repoPath.toLocaleLowerCase().includes(query));
 		const now = Date.now();
 		for (const session of sessions) {
 			const row = append(this.element, $('.pi-chat-session-row'));

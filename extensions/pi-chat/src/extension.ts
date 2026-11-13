@@ -11,7 +11,7 @@ import type { PiChatPlaybackStatus } from '../../../src/vs/workbench/contrib/piC
 import { changePiChatOpenAIAccount, getPiChatOpenAIAccounts } from './PiChatOpenAIAccountService.js';
 import { fetchPiChatOpenAILimits } from './PiChatOpenAILimitsService.js';
 import { getPiChatContextUsage } from './PiChatContextUsageService.js';
-import { cancelPiChatPrompt, createPiChatSession, disposePiChatRuns, pollPiChatTurn, queuePiChatPrompt, restorePiChatDraft, sendPiChatPromptNow, startPiChatTurn, stopPiChatTurn } from './PiChatRunService.js';
+import { cancelPiChatPrompt, createPiChatSession, disposePiChatRuns, pollPiChatTurn, queuePiChatPrompt, renamePiChatSession, restorePiChatDraft, sendPiChatPromptNow, startPiChatTurn, stopPiChatTurn } from './PiChatRunService.js';
 
 const script = join(__dirname, '..', 'siri-tts.sh');
 let generation = 0;
@@ -84,6 +84,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.changeOpenAIAccount', changePiChatOpenAIAccount));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.createSession', createPiChatSession));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.restoreDraft', restorePiChatDraft));
+	context.subscriptions.push(vscode.commands.registerCommand('piChat.renameSession', renamePiChatSession));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.startTurn', startPiChatTurn));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.pollTurn', pollPiChatTurn));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.openAILimits', fetchPiChatOpenAILimits));

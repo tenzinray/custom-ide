@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, getWindow } from '../../../../base/browser/dom.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { localize } from '../../../../nls.js';
+import { PiChatSessionRenameService } from './PiChatSessionRenameService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { isPiChatSessionTab } from '../common/pi-chat-tab-types.js';
 import { PiChatConversationPane } from './PiChatConversationPane.js';
@@ -32,20 +37,34 @@ export class PiChatConversationGroup extends Disposable implements IView {
 	private readonly emptyPane = this._register(new MutableDisposable<PiChatConversationPane>());
 	private state: PiChatGroup | undefined;
 	private readonly sessions: PiChatSessionListService;
+	private readonly rename: PiChatSessionRenameService;
 	private showOpenAILimits = false;
 
 	constructor(readonly id: number, onNew: () => void,
 		@IInstantiationService private readonly instantiation: IInstantiationService,
 		@IPiChatSelectionService private readonly selection: IPiChatSelectionService,
 		@INotificationService private readonly notifications: INotificationService,
+		@IContextMenuService private readonly contextMenus: IContextMenuService,
 	) {
 		super();
 		this.sessions = instantiation.createInstance(PiChatSessionListService);
+		this.rename = this._register(instantiation.createInstance(PiChatSessionRenameService));
 		this.title = append(this.element, $('.title.has-composite-bar.pi-chat-group-title'));
 		this.tabs = this._register(instantiation.createInstance(PiChatGroupTabs, onNew,
 			(tab, groupId) => selection.activateTab(groupId, tab.id),
 			(session, groupId) => selection.closeSession(groupId, session.id),
-			(session, groupId, event) => fillPiChatDragData(instantiation, session, event, groupId)));
+			(session, groupId, event) => fillPiChatDragData(instantiation, session, event, groupId),
+			(tab, label, event) => {
+				if (!isPiChatSessionTab(tab)) { return; }
+				const pinned = this.sessions.getPinnedIds().has(tab.id);
+				this.contextMenus.showContextMenu({
+					getAnchor: () => new StandardMouseEvent(getWindow(label), event),
+					getActions: () => [
+						toAction({ id: 'piChat.renameSession', label: localize('piChat.renameChat', "Rename"), run: () => this.rename.begin(tab, label, () => { if (this.state) { this.tabs.render(this.state); } }) }),
+						toAction({ id: 'piChat.pinSession', label: pinned ? localize('piChat.unpin', "Unpin Chat") : localize('piChat.pin', "Pin Chat"), run: () => this.sessions.setPinned(tab.id, !pinned) }),
+					],
+				});
+			}));
 		this.title.appendChild(this.tabs.element);
 		this.body = append(this.element, $('.pi-chat-group-body'));
 		this._register(new PiChatGroupDropTarget(this.tabs.element, (sessionId, sourceGroupId) => {
@@ -81,7 +100,7 @@ export class PiChatConversationGroup extends Disposable implements IView {
 		this.element.classList.toggle('active-group', this.selection.activeGroupId === this.id);
 		if (group === this.state) { return; }
 		this.state = group;
-		this.tabs.render(group);
+		if (!this.rename.isEditing) { this.tabs.render(group); }
 		for (const [id, pane] of this.panes) {
 			if (!group.tabs.some(tab => tab.id === id)) { pane.element.remove(); this.panes.deleteAndDispose(id); }
 		}

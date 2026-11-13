@@ -28,6 +28,7 @@ import { PiChatSessionSummary } from '../common/pi-chat-types.js';
 import { PiChatCreatedSession } from '../common/pi-chat-run-types.js';
 import { PiChatConversationView } from './PiChatConversationView.js';
 import { PiChatSessionListService } from './PiChatSessionListService.js';
+import { PiChatSessionRenameService } from './PiChatSessionRenameService.js';
 import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatSelectionService } from './PiChatSelectionService.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
@@ -46,6 +47,7 @@ export class PiChatSessionsView extends ViewPane {
 	private refreshId = 0;
 	private readonly sessionListService: PiChatSessionListService;
 	private readonly inputCache: PiChatInputCacheService;
+	private readonly rename: PiChatSessionRenameService;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -67,14 +69,19 @@ export class PiChatSessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, piInstantiationService, openerService, themeService, hoverService);
 		this.sessionListService = piInstantiationService.createInstance(PiChatSessionListService);
 		this.inputCache = piInstantiationService.createInstance(PiChatInputCacheService);
+		this.rename = this._register(piInstantiationService.createInstance(PiChatSessionRenameService));
+		this.sessionListService.onDidChangePins(this._store, () => { void this.refresh(); });
 		this._register(this.onDidChangeBodyVisibility(visible => { if (visible) { void this.refresh(); } }));
 		this._register(Event.any(selection.onDidSelectSession, selection.onDidUpdateSession)(session => {
 			if (!session) { this.renderSessions(); return; }
+			const changedTimestamp = [...this.sessions, ...this.pinnedSessions].some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt);
+			this.sessions = this.sessions.map(saved => saved.id === session.id ? session : saved);
+			this.pinnedSessions = this.pinnedSessions.map(saved => saved.id === session.id ? session : saved);
 			if (session.isDraft) { this.draft = session; }
-			if (!session.isDraft && (this.draft?.id === session.id || [...this.sessions, ...this.pinnedSessions].some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt))) {
+			this.sessionListService.invalidate();
+			if (!session.isDraft && (this.draft?.id === session.id || changedTimestamp)) {
 				if (this.draft?.id === session.id) { this.draft = undefined; }
 				if (this.inputCache.getDraftSession()?.id === session.id) { this.inputCache.setDraftSession(undefined); }
-				this.sessionListService.invalidate();
 				void this.refresh();
 			} else { this.renderSessions(); }
 		}));
@@ -109,7 +116,7 @@ export class PiChatSessionsView extends ViewPane {
 		this.draft = saved;
 		this.renderSessions();
 		try {
-			const created = await this.commands.executeCommand<PiChatCreatedSession>('piChat.restoreDraft', saved.id, saved.repoPath);
+			const created = await this.commands.executeCommand<PiChatCreatedSession>('piChat.restoreDraft', saved.id, saved.repoPath, saved.sessionName);
 			if (!created || this._store.isDisposed || this.draft?.id !== saved.id) { return; }
 			this.draft = { ...saved, sessionFile: URI.file(created.sessionFile) };
 			this.inputCache.setDraftSession(this.draft);
@@ -138,7 +145,7 @@ export class PiChatSessionsView extends ViewPane {
 	}
 
 	private renderSessions(): void {
-		if (!this.list) { return; }
+		if (!this.list || this.rename.isEditing) { return; }
 		const openSessions = this.selection.groups.flatMap(group => group.tabs).filter(isPiChatSessionTab);
 		const drafts = [...new Map(openSessions.filter(session => session.isDraft).map(session => [session.id, session])).values()];
 		if (this.draft && !openSessions.some(session => session.id === this.draft?.id)) { drafts.push(this.draft); }
@@ -150,8 +157,7 @@ export class PiChatSessionsView extends ViewPane {
 			() => { this.limit += PiChatSessionListService.pageSize; void this.refresh(); },
 			session => {
 				this.sessionListService.setPinned(session.id, !this.sessionListService.getPinnedIds().has(session.id));
-				void this.refresh();
-			});
+			}, (session, label) => this.rename.begin(session, label, () => this.renderSessions()));
 	}
 
 }

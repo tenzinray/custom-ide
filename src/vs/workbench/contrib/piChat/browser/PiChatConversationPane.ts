@@ -86,7 +86,10 @@ export class PiChatConversationPane extends Disposable {
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
 		this.copy = new PiChatMessageCopy(text => clipboardService.writeText(text));
 		this._register(Event.any(this.selection.onDidSelectSession, this.selection.onDidUpdateSession)(session => {
-			if (session && session.id === this.summary?.id && !this.sending && !session.isDraft) { void this.show(session); }
+			if (session && session.id === this.summary?.id) {
+				if (session.sessionName !== this.summary.sessionName) { this.summary = { ...this.summary, sessionName: session.sessionName }; }
+				if (!this.sending && !session.isDraft) { void this.show(session); }
+			}
 		}));
 		void instantiationService.createInstance(PiChatModelService).loadModels().then(({ defaultModel, models }) => {
 			if (this._store.isDisposed) { return; }
@@ -347,7 +350,7 @@ export class PiChatConversationPane extends Disposable {
 				const error = snapshot.events.find(event => event.type === 'error');
 				if (error?.type === 'error') { throw new Error(error.message); }
 				if (snapshot.events.some(event => event.type === 'complete')) {
-					const updated: PiChatSessionSummary = { ...summary, sessionFile: URI.file(summary.sessionFile.fsPath), isDraft: false, lastMessageAt: new Date().toISOString() };
+					const updated: PiChatSessionSummary = { ...(this.summary?.id === summary.id ? this.summary : summary), sessionFile: URI.file(summary.sessionFile.fsPath), isDraft: false, lastMessageAt: new Date().toISOString() };
 					this.summary = updated;
 					this.history = await this.loader.loadSession(updated);
 					if (request !== this.requestId || this._store.isDisposed) { return; }

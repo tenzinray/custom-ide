@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
@@ -37,6 +39,10 @@ export class PiChatSessionListService {
 		if (pinned) { ids.add(id); }
 		else { ids.delete(id); }
 		this.storage.store(pinnedSessionsKey, [...ids], StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	onDidChangePins(disposables: DisposableStore, listener: () => void): void {
+		disposables.add(this.storage.onDidChangeValue(StorageScope.PROFILE, pinnedSessionsKey, disposables)(listener));
 	}
 
 	invalidate(): void {
@@ -93,12 +99,12 @@ export class PiChatSessionListService {
 		const key = file.resource.toString();
 		const cached = this.summaries.get(key);
 		if (cached?.mtime === file.mtime && cached.size === file.size) { return cached.summary; }
-		const summary = await this.readSummary(file.resource, file.size);
+		const summary = await this.readSummary(file.resource, file.size, cached && file.size > cached.size ? cached : undefined);
 		this.summaries.set(key, { mtime: file.mtime, size: file.size, summary });
 		return summary;
 	}
 
-	private async readSummary(sessionFile: URI, size: number): Promise<PiChatSessionSummary | undefined> {
+	private async readSummary(sessionFile: URI, size: number, previous?: { size: number; summary: PiChatSessionSummary | undefined }): Promise<PiChatSessionSummary | undefined> {
 		try {
 			const headerText = (await this.fileService.readFile(sessionFile, { position: 0, length: Math.min(size, 16_384) })).value.toString().split('\n')[0];
 			const header = JSON.parse(headerText) as { type?: string; id?: string; cwd?: string; timestamp?: string } | null;
@@ -106,31 +112,41 @@ export class PiChatSessionListService {
 				typeof header.cwd !== 'string' || typeof header.timestamp !== 'string') {
 				return undefined;
 			}
-			let lastMessageAt = header.timestamp;
-			for (let length = 65_536; length <= 524_288; length *= 2) {
-				const count = Math.min(size, length);
-				const tail = (await this.fileService.readFile(sessionFile, { position: size - count, length: count })).value.toString();
-				const lines = (count === size ? tail : tail.slice(tail.indexOf('\n') + 1)).split('\n');
-				let found = false;
+			let lastMessageAt = previous?.summary?.lastMessageAt ?? header.timestamp;
+			let sessionName = previous?.summary?.sessionName;
+			let foundMessage = false;
+			let foundName = false;
+			let position = size;
+			let carry = VSBuffer.alloc(0);
+			// Names can precede arbitrarily long turns. Scan backwards in bounded chunks;
+			// cached append-only files only need their new tail, not the whole transcript.
+			while (position > 0 && !(foundMessage && foundName)) {
+				const count = Math.min(position, 65_536);
+				position -= count;
+				const chunk = (await this.fileService.readFile(sessionFile, { position, length: count })).value;
+				const buffer = VSBuffer.concat([chunk, carry]);
+				const firstNewline = position ? buffer.buffer.indexOf(10) : -1;
+				carry = firstNewline < 0 && position ? buffer : buffer.slice(0, Math.max(0, firstNewline));
+				const lines = (position ? firstNewline < 0 ? '' : buffer.slice(firstNewline + 1).toString() : buffer.toString()).split('\n');
 				for (let index = lines.length - 1; index >= 0; index--) {
 					try {
-						const entry = JSON.parse(lines[index]) as { type?: string; timestamp?: string; message?: { role?: string; timestamp?: number } };
-						if (entry.type !== 'message' || (entry.message?.role !== 'user' && entry.message?.role !== 'assistant')) {
-							continue;
+						const entry = JSON.parse(lines[index]) as { type?: string; name?: string; timestamp?: string; message?: { role?: string; timestamp?: number } };
+						if (!foundName && entry.type === 'session_info' && typeof entry.name === 'string') {
+							sessionName = entry.name;
+							foundName = true;
 						}
-						const timestamp = entry.message.timestamp ? new Date(entry.message.timestamp).toISOString() : entry.timestamp;
-						if (timestamp && !Number.isNaN(Date.parse(timestamp))) {
-							lastMessageAt = timestamp;
-							found = true;
-							break;
+						if (!foundMessage && entry.type === 'message' && (entry.message?.role === 'user' || entry.message?.role === 'assistant')) {
+							const timestamp = entry.message.timestamp ? new Date(entry.message.timestamp).toISOString() : entry.timestamp;
+							if (timestamp && !Number.isNaN(Date.parse(timestamp))) {
+								lastMessageAt = timestamp;
+								foundMessage = true;
+							}
 						}
 					} catch { /* Ignore a partial or malformed JSONL line. */ }
 				}
-				if (found || count === size) {
-					break;
-				}
+				if (previous?.summary && position + carry.byteLength <= previous.size) { break; }
 			}
-			return { id: header.id, repoName: basename(URI.file(header.cwd)) || header.cwd, repoPath: header.cwd, lastMessageAt, sessionFile };
+			return { id: header.id, repoName: basename(URI.file(header.cwd)) || header.cwd, sessionName, repoPath: header.cwd, lastMessageAt, sessionFile };
 		} catch {
 			return undefined;
 		}

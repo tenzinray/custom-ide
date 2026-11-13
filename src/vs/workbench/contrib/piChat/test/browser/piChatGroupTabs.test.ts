@@ -25,7 +25,7 @@ suite('Pi chat title tabs', () => {
 	];
 
 	function createTabs(onNew: () => void, onSelect: (tab: PiChatTab, groupId: number) => void, onClose: (tab: PiChatTab, groupId: number) => void): PiChatGroupTabs {
-		const tabs = store.add(new PiChatGroupTabs(onNew, onSelect, onClose, () => { }, upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) })));
+		const tabs = store.add(new PiChatGroupTabs(onNew, onSelect, onClose, () => { }, () => { }, upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) })));
 		append(mainWindow.document.body, tabs.element);
 		store.add(toDisposable(() => tabs.element.remove()));
 		return tabs;
@@ -91,6 +91,19 @@ suite('Pi chat title tabs', () => {
 			second: [...second.element.querySelectorAll('.action-label')].map(label => label.textContent),
 			selected, created,
 		}, { first: ['book', 'custom-ide'], second: ['other'], selected: ['1:other'], created: [0, 1] });
+	});
+
+	test('renamed tabs use the shared title and context menus target inactive tabs without selecting them', () => {
+		const actions: string[] = [];
+		const tabs = store.add(new PiChatGroupTabs(() => {}, tab => actions.push(`select:${tab.id}`), () => {}, () => {},
+			(tab, label) => actions.push(`menu:${tab.id}:${label.textContent}`), upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => {}) })));
+		tabs.render({ id: 0, tabs: [session('one'), { ...session('two'), sessionName: 'Renamed chat' }], activeSessionId: 'one' });
+		const tab = tabs.element.querySelectorAll<HTMLElement>('[role="tab"]')[1];
+		const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+		tab.dispatchEvent(event);
+		assert.deepStrictEqual({ labels: [...tabs.element.querySelectorAll('.action-label')].map(label => label.textContent), actions, prevented: event.defaultPrevented }, {
+			labels: ['one', 'Renamed chat'], actions: ['menu:two:Renamed chat'], prevented: true,
+		});
 	});
 
 	test('rerender replaces tab controls without duplicating the plus action', () => {

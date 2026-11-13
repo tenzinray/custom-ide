@@ -12,7 +12,7 @@ const cacheKey = 'piChat.inputCache';
 interface Cache {
 	recent: string[];
 	queued: Record<string, PiChatQueuedPrompt[]>;
-	draftSession?: { id: string; repoName: string; repoPath: string; lastMessageAt: string; sessionFile: string };
+	draftSession?: Omit<PiChatSessionSummary, 'sessionFile' | 'isDraft'> & { sessionFile: string };
 }
 
 /** VS Code's machine-local profile storage is shared by editor and sidebar, and survives reloads. */
@@ -62,7 +62,7 @@ export class PiChatInputCacheService {
 
 	setDraftSession(summary: PiChatSessionSummary | undefined): void {
 		const cache = this.read();
-		if (summary) { cache.draftSession = { id: summary.id, repoName: summary.repoName, repoPath: summary.repoPath, lastMessageAt: summary.lastMessageAt, sessionFile: summary.sessionFile.fsPath }; }
+		if (summary) { cache.draftSession = { id: summary.id, repoName: summary.repoName, sessionName: summary.sessionName, repoPath: summary.repoPath, lastMessageAt: summary.lastMessageAt, sessionFile: summary.sessionFile.fsPath }; }
 		else { delete cache.draftSession; }
 		this.write(cache);
 	}

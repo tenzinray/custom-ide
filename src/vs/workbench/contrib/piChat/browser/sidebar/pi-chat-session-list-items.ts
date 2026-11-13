@@ -5,7 +5,7 @@
 
 import { $, append } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
-import { PiChatSessionSummary } from '../../common/pi-chat-types.js';
+import { getPiChatSessionLabel, PiChatSessionSummary } from '../../common/pi-chat-types.js';
 import { PiChatSessionListService } from '../PiChatSessionListService.js';
 
 // Same age rule and absolute date format as pi-ui/ChatSidebar.tsx.
@@ -15,15 +15,16 @@ function formatSessionAge(timestamp: string, now: number): string {
 }
 
 /** Session identity and timestamps shared by sidebar and resume choices. */
-export function renderPiChatSessionDetails(parent: HTMLElement, session: PiChatSessionSummary, now: number): void {
+export function renderPiChatSessionDetails(parent: HTMLElement, session: PiChatSessionSummary, now: number): HTMLElement {
 	const details = append(parent, $('span.pi-chat-session-details'));
-	append(details, $('span.pi-chat-session-name', {}, session.repoName));
+	const name = append(details, $('span.pi-chat-session-name', {}, getPiChatSessionLabel(session)));
 	if (session.isDraft) { append(details, $('span.pi-chat-session-date', {}, localize('piChat.newChat', "New Chat"))); }
 	else {
 		const timestamp = append(details, $('span.pi-chat-session-timestamp'));
 		append(timestamp, $('time.pi-chat-session-date', { dateTime: session.lastMessageAt }, new Date(session.lastMessageAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })));
 		append(timestamp, $('span.pi-chat-session-age', {}, formatSessionAge(session.lastMessageAt, now)));
 	}
+	return name;
 }
 
 /** The same page action and label on both session surfaces. */
