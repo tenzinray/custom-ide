@@ -4,6 +4,10 @@ This file provides instructions for AI coding agents working with the VS Code co
 
 For detailed project overview, architecture, coding guidelines, and validation steps, see the [Copilot Instructions](.github/copilot-instructions.md).
 
+## Commits
+
+After completing a task, commit and push to the remote. Keep commits scoped to coherent task-sized chunks; avoid mixing separately completed, unrelated work into one commit. Use judgment—no need to over-split small changes. Usually commit each turn if task was completed.
+
 ## Screenshots and recordings
 
 - Save all local screenshots, image previews, and screen recordings under this repository's `screenshots/` directory, never `logs/`, `/tmp`, or another artifact directory. Keep text logs and launch metadata in `logs/`.
