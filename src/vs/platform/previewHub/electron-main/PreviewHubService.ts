@@ -60,6 +60,10 @@ export class PreviewHubService extends Disposable implements IPreviewHubService 
 		try { await this.processes.stop(id); } finally { await this.getSnapshot(); }
 	}
 
+	async openPideWindow(): Promise<void> {
+		try { await this.processes.openPideWindow(); } finally { await this.getSnapshot(); }
+	}
+
 	async setCaffeine(enabled: boolean): Promise<void> {
 		try { await this.caffeine.setEnabled(enabled); }
 		finally { await this.getSnapshot(); }

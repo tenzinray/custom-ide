@@ -8,7 +8,7 @@
 .preview-hub-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vscode-spacing-size80); margin-bottom: var(--vscode-spacing-size160); }
 .preview-hub-body { display: flex; flex-direction: column; gap: var(--vscode-spacing-size120); }
 .preview-hub-app { padding: var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid var(--vscode-panel-border); border-radius: var(--vscode-cornerRadius-medium); }
-.preview-hub-app-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--vscode-spacing-size80); }
+.preview-hub-app-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--vscode-spacing-size80); margin-bottom: var(--vscode-spacing-size120); }
 .preview-hub-app h3 { margin: 0; font-size: var(--vscode-fontSize-heading3); font-weight: var(--vscode-fontWeight-semiBold); }
 .preview-hub-status { display: inline-flex; align-items: center; gap: var(--vscode-spacing-size40); white-space: nowrap; font-size: var(--vscode-fontSize-body2); }
 .preview-hub .preview-hub-status, .preview-hub .preview-hub-status .codicon { color: var(--vscode-descriptionForeground); }
@@ -26,6 +26,8 @@
 .preview-hub-logs { margin-top: var(--vscode-spacing-size120); }
 .preview-hub-log-separator { margin: var(--vscode-spacing-size120) 0 0; border: 0; border-top: var(--vscode-strokeThickness) solid var(--vscode-panel-border); }
 .monaco-workbench .preview-hub .preview-hub-actions button { min-height: 28px; padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-foreground) 25%, transparent); font-weight: var(--vscode-fontWeight-semiBold); }
+.monaco-workbench .preview-hub .preview-hub-start:not(:disabled) { background: color-mix(in srgb, var(--vscode-textLink-foreground) 20%, var(--vscode-sideBar-background)); border-color: var(--vscode-textLink-foreground); color: var(--vscode-textLink-foreground); }
+.monaco-workbench .preview-hub .preview-hub-stop:not(:disabled) { background: color-mix(in srgb, var(--vscode-errorForeground) 20%, var(--vscode-sideBar-background)); border-color: var(--vscode-errorForeground); color: var(--vscode-errorForeground); }
 .preview-hub-processes { margin-top: var(--vscode-spacing-size120); font-size: var(--vscode-fontSize-body2); color: var(--vscode-descriptionForeground); }
 .preview-hub-processes summary { cursor: pointer; }
 .preview-hub-process-list { display: flex; flex-direction: column; gap: var(--vscode-spacing-size80); margin-top: var(--vscode-spacing-size80); }

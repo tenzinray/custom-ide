@@ -33,7 +33,7 @@ export class PreviewHubContainer extends Disposable {
 	constructor(parent: HTMLElement,
 		@IPreviewHubService private readonly hub: IPreviewHubService,
 		@IEditorService private readonly editors: IEditorService,
-		@IOpenerService opener: IOpenerService,
+		@IOpenerService private readonly opener: IOpenerService,
 		@IFileService private readonly files: IFileService,
 		@IPathService private readonly paths: IPathService,
 		@INotificationService private readonly notifications: INotificationService,
@@ -46,8 +46,8 @@ export class PreviewHubContainer extends Disposable {
 		const body = append(shell, $('.preview-hub-body'));
 		for (const app of previewHubApps) {
 			this.cards.set(app.id, this._register(new PreviewHubAppCard(body, app,
-				() => { void this.control(app.id, true); }, () => { void this.control(app.id, false); },
-				() => { const url = this.state?.apps.find(state => state.id === app.id)?.previewUrl; if (url) { void opener.open(URI.parse(url)); } },
+				() => { void this.control(app.id, 'start'); }, () => { void this.control(app.id, 'stop'); },
+				() => { void this.control(app.id, 'preview'); },
 				path => { void this.openLog(app.id, path); })));
 		}
 		const footer = append(shell, $('footer.preview-hub-footer'));
@@ -65,15 +65,23 @@ export class PreviewHubContainer extends Disposable {
 		for (const app of state.apps) { this.cards.get(app.id)?.update(app, this.pending.has(app.id)); }
 	}
 
-	private async control(id: PreviewHubAppId, start: boolean): Promise<void> {
+	private async control(id: PreviewHubAppId, action: 'start' | 'stop' | 'preview'): Promise<void> {
 		if (this.pending.has(id)) { return; }
-		if (start && !this.trust.isWorkspaceTrusted()) {
+		if ((action === 'start' || (action === 'preview' && id === 'pide')) && !this.trust.isWorkspaceTrusted()) {
 			this.notifications.warn(localize('previewHub.trust', "Trust this workspace before starting local commands."));
 			return;
 		}
 		this.pending.add(id);
 		if (this.state) { this.update(this.state); }
-		try { if (start) { await this.hub.start(id); } else { await this.hub.stop(id); } }
+		try {
+			if (action === 'start') { await this.hub.start(id); }
+			else if (action === 'stop') { await this.hub.stop(id); }
+			else if (id === 'pide') { await this.hub.openPideWindow(); }
+			else {
+				const url = this.state?.apps.find(state => state.id === id)?.previewUrl;
+				if (url) { await this.opener.open(URI.parse(url)); }
+			}
+		}
 		catch (error) { this.notifications.error(error); }
 		finally {
 			this.pending.delete(id);

@@ -23,7 +23,7 @@ export class PreviewHubAppCard extends Disposable {
 	private readonly stop: HTMLButtonElement;
 	private readonly preview: HTMLButtonElement | undefined;
 
-	constructor(parent: HTMLElement, app: typeof previewHubApps[number], onStart: () => void, onStop: () => void, onPreview: () => void, onLog: (path?: string) => void) {
+	constructor(parent: HTMLElement, private readonly app: typeof previewHubApps[number], onStart: () => void, onStop: () => void, onPreview: () => void, onLog: (path?: string) => void) {
 		super();
 		this.element = append(parent, $('section.preview-hub-app'));
 		const heading = append(this.element, $('.preview-hub-app-heading'));
@@ -37,19 +37,20 @@ export class PreviewHubAppCard extends Disposable {
 		this.phase.element.classList.add('preview-hub-phase');
 		const command = append(this.element, $('code.preview-hub-command', {}, app.command.filter(arg => arg !== '--preview-hub').join(' ')));
 		command.hidden = true;
-		const components = append(this.element, $('.preview-hub-components'));
-		for (const component of app.components) {
-			const row = append(components, $('.preview-hub-component'));
-			append(row, $('span', {}, component.name));
-			this.components.set(component.id, new PreviewHubStatus(row));
+		if (app.components.length > 1) {
+			const components = append(this.element, $('.preview-hub-components'));
+			for (const component of app.components) {
+				const row = append(components, $('.preview-hub-component'));
+				append(row, $('span', {}, component.name));
+				this.components.set(component.id, new PreviewHubStatus(row));
+			}
 		}
-		if (app.id === 'lucent') { append(this.element, $('p.preview-hub-note', {}, localize('previewHub.hostedBackend', "Backend is hosted; no local backend is started."))); }
 		const actions = append(this.element, $('.preview-hub-actions'));
 		this.start = this.button(actions, localize('previewHub.start', "Start"), onStart);
 		this.start.classList.add('preview-hub-start');
 		this.stop = this.button(actions, localize('previewHub.stop', "Stop"), onStop);
 		this.stop.classList.add('preview-hub-stop');
-		if (app.id === 'brain-wave') {
+		if (app.id !== 'lucent') {
 			this.preview = this.button(actions, localize('previewHub.openPreview', "Open Preview"), onPreview);
 			this.preview.disabled = true;
 		}
@@ -79,7 +80,9 @@ export class PreviewHubAppCard extends Disposable {
 		this.start.disabled = pending || allRunning || state.phase === 'starting' || state.phase === 'stopping';
 		this.start.textContent = state.components.some(component => component.running) && !allRunning ? localize('previewHub.startMissing', "Start Missing") : localize('previewHub.start', "Start");
 		this.stop.disabled = pending || state.phase === 'stopped' || state.phase === 'error' || state.phase === 'stopping';
-		if (this.preview) { this.preview.disabled = !state.previewUrl; }
+		if (this.preview) {
+			this.preview.disabled = this.app.id === 'pide' ? pending || state.phase === 'starting' || state.phase === 'stopping' : !state.previewUrl;
+		}
 		this.error.textContent = state.error ?? '';
 	}
 }

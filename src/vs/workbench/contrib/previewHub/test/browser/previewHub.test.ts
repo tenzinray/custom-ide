@@ -69,13 +69,21 @@ suite('PreviewHub presentation', () => {
 		});
 	});
 
-	test('Lucent and Pide never offer a browser preview or simulator launch button', () => {
-		const actions = previewHubApps.filter(app => app.id !== 'brain-wave').map(app => {
+	test('only multi-component apps show component rows; Pide can open additional windows while running', () => {
+		let windows = 0;
+		const results = previewHubApps.map(app => {
 			const host = mainWindow.document.createElement('div');
-			store.add(new PreviewHubAppCard(host, app, () => {}, () => {}, () => { throw new Error('Must not open a preview'); }, () => {}));
-			return [...host.querySelectorAll('.preview-hub-actions button')].map(button => button.textContent);
+			const card = store.add(new PreviewHubAppCard(host, app, () => {}, () => {}, () => { windows++; }, () => {}));
+			card.update({ id: app.id, phase: 'running', launcherLog: '/log', components: app.components.map(component => ({ id: component.id, running: true })) }, false);
+			const buttons = host.querySelectorAll<HTMLButtonElement>('.preview-hub-actions button');
+			if (app.id === 'pide') { buttons[2].click(); buttons[2].click(); }
+			return { actions: [...buttons].map(button => button.textContent), rows: host.querySelectorAll('.preview-hub-component').length, hostedNote: host.textContent?.includes('Backend is hosted') };
 		});
-		assert.deepStrictEqual(actions, [['Start', 'Stop'], ['Start', 'Stop']]);
+		assert.deepStrictEqual({ results, windows }, { results: [
+			{ actions: ['Start', 'Stop', 'Open Preview'], rows: 0, hostedNote: false },
+			{ actions: ['Start', 'Stop'], rows: 0, hostedNote: false },
+			{ actions: ['Start', 'Stop', 'Open Preview'], rows: 2, hostedNote: false },
+		], windows: 2 });
 	});
 
 	test('titlebar stays icon-only and toggles the checked state used to color the cup', () => {
@@ -96,7 +104,7 @@ suite('PreviewHub presentation', () => {
 		});
 	});
 
-	test('actual coffee and check glyphs are green, stopped stays neutral, and buttons share neutral fills', () => {
+	test('icons stay green or neutral, while only enabled Start and Stop receive their action colors', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.className = 'monaco-workbench';
 		workbench.style.setProperty('--vscode-charts-green', '#28a745');
@@ -105,6 +113,8 @@ suite('PreviewHub presentation', () => {
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#eeeeee');
 		workbench.style.setProperty('--vscode-foreground', '#eeeeee');
 		workbench.style.setProperty('--vscode-sideBar-background', '#222222');
+		workbench.style.setProperty('--vscode-textLink-foreground', '#3388ff');
+		workbench.style.setProperty('--vscode-errorForeground', '#dd3333');
 		const titlebar = mainWindow.document.createElement('div');
 		titlebar.className = 'part titlebar';
 		workbench.append(titlebar);
@@ -119,26 +129,26 @@ suite('PreviewHub presentation', () => {
 			titlebar.append(actionItem);
 			store.add(new PreviewHubCaffeineButton(action, {})).render(actionItem);
 			const header = store.add(new PreviewHubHeader(hub, () => {}));
-			const card = store.add(new PreviewHubAppCard(hub, previewHubApps[0], () => {}, () => {}, () => {}, () => {}));
+			const card = store.add(new PreviewHubAppCard(hub, previewHubApps[2], () => {}, () => {}, () => {}, () => {}));
 			const color = (selector: string) => mainWindow.getComputedStyle(workbench.querySelector<HTMLElement>(selector)!).color;
 			const off = color('.preview-hub-titlebar-caffeine .codicon-coffee');
 			action.checked = true;
 			header.update({ enabled: true });
-			card.update({ id: 'brain-wave', phase: 'running', components: [{ id: 'frontend', running: true }], launcherLog: '/log' }, false);
+			card.update({ id: 'pide', phase: 'running', components: [{ id: 'watcher', running: true }, { id: 'app', running: true }], launcherLog: '/log' }, false);
+			const runningControls = { start: color('.preview-hub-start'), stop: color('.preview-hub-stop') };
 			const on = [color('.preview-hub-titlebar-caffeine .codicon-coffee'), color('.preview-hub-caffeine .codicon-coffee'), color('.preview-hub-phase .codicon-check')];
 			const runningStatuses = [...hub.querySelectorAll<HTMLElement>('.preview-hub-status')].map(status => ({ text: status.textContent, textColor: mainWindow.getComputedStyle(status.lastElementChild!).color, checkColor: mainWindow.getComputedStyle(status.querySelector('.codicon-check')!).color }));
-			card.update({ id: 'brain-wave', phase: 'stopped', components: [{ id: 'frontend', running: false }], launcherLog: '/log' }, false);
+			card.update({ id: 'pide', phase: 'stopped', components: [{ id: 'watcher', running: false }, { id: 'app', running: false }], launcherLog: '/log' }, false);
+			const stoppedControls = { start: color('.preview-hub-start'), stop: color('.preview-hub-stop') };
 			const stopped = color('.preview-hub-phase');
 			const stoppedStatuses = [...hub.querySelectorAll<HTMLElement>('.preview-hub-status')].map(status => ({ text: status.textContent, color: mainWindow.getComputedStyle(status.lastElementChild!).color, icons: status.querySelectorAll('.codicon').length }));
-			const backgrounds = [...hub.querySelectorAll<HTMLButtonElement>('.preview-hub-actions button')].map(button => mainWindow.getComputedStyle(button).backgroundColor);
-			const neutralButtons = backgrounds.every(color => color === backgrounds[0] && color !== 'rgba(0, 0, 0, 0)');
 			workbench.style.removeProperty('--vscode-button-secondaryBackground');
 			const fallbackBackgrounds = [...hub.querySelectorAll<HTMLButtonElement>('.preview-hub-actions button')].map(button => mainWindow.getComputedStyle(button).backgroundColor);
 			const filledWithoutSecondaryToken = fallbackBackgrounds.every(color => color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent');
 			action.checked = false;
 			header.update({ enabled: false });
-			assert.deepStrictEqual({ off, on, offAgain: color('.preview-hub-titlebar-caffeine .codicon-coffee'), hubOff: color('.preview-hub-caffeine .codicon-coffee'), stopped, runningStatuses, stoppedStatuses, neutralButtons, filledWithoutSecondaryToken, scrollbar: mainWindow.getComputedStyle(hub).scrollbarWidth }, {
-				off: 'rgb(153, 153, 153)', on: Array(3).fill('rgb(40, 167, 69)'), offAgain: 'rgb(153, 153, 153)', hubOff: 'rgb(153, 153, 153)', stopped: 'rgb(153, 153, 153)', runningStatuses: Array(2).fill({ text: 'Running', textColor: 'rgb(40, 167, 69)', checkColor: 'rgb(40, 167, 69)' }), stoppedStatuses: Array(2).fill({ text: 'Stopped', color: 'rgb(153, 153, 153)', icons: 0 }), neutralButtons: true, filledWithoutSecondaryToken: true, scrollbar: 'none',
+			assert.deepStrictEqual({ off, on, offAgain: color('.preview-hub-titlebar-caffeine .codicon-coffee'), hubOff: color('.preview-hub-caffeine .codicon-coffee'), stopped, runningStatuses, stoppedStatuses, runningControls, stoppedControls, filledWithoutSecondaryToken, scrollbar: mainWindow.getComputedStyle(hub).scrollbarWidth }, {
+				off: 'rgb(153, 153, 153)', on: Array(3).fill('rgb(40, 167, 69)'), offAgain: 'rgb(153, 153, 153)', hubOff: 'rgb(153, 153, 153)', stopped: 'rgb(153, 153, 153)', runningStatuses: Array(3).fill({ text: 'Running', textColor: 'rgb(40, 167, 69)', checkColor: 'rgb(40, 167, 69)' }), stoppedStatuses: Array(3).fill({ text: 'Stopped', color: 'rgb(153, 153, 153)', icons: 0 }), runningControls: { start: 'rgb(238, 238, 238)', stop: 'rgb(221, 51, 51)' }, stoppedControls: { start: 'rgb(51, 136, 255)', stop: 'rgb(238, 238, 238)' }, filledWithoutSecondaryToken: true, scrollbar: 'none',
 			});
 		} finally { workbench.remove(); }
 	});

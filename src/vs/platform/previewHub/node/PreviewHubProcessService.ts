@@ -13,6 +13,7 @@ import { ILogService } from '../../log/common/log.js';
 import { previewHubApps, PreviewHubAppId } from '../common/previewHubApps.js';
 import { previewHubLauncherLogPath } from '../common/previewHub.js';
 import { PreviewHubAppState } from '../common/preview-hub-types.js';
+import { openPreviewHubPideWindow } from './PreviewHubPideWindowService.js';
 import { findPreviewHubProcesses, getPreviewHubProcessDetails, getPreviewHubProcessLog, readPreviewHubProcesses, stopPreviewHubProcesses } from './previewHubProcesses.js';
 
 /** Exact local app processes and launch output. Existing unrelated processes are never blanket-killed. */
@@ -61,13 +62,7 @@ export class PreviewHubProcessService extends Disposable {
 				if (matches.get('watcher')?.length) { command = app.launchCommand; }
 				else if (matches.get('app')?.length) { command = app.watchCommand; }
 			}
-			// The shell resolver returns overrides, and intentionally returns {} for CLI launches.
-			// Preserve the inherited PATH/HOME instead of spawning with an empty environment.
-			const env = { ...process.env, ...await this.environment() };
-			// Electron's main-process environment must not turn a spawned dev app into Node.
-			delete env.ELECTRON_RUN_AS_NODE;
-			delete env.GIT_CONFIG_COUNT;
-			delete env.GIT_CONFIG_PARAMETERS;
+			const env = await this.launchEnvironment();
 			await mkdir(join(root, 'logs'), { recursive: true });
 			const output = await open(join(root, previewHubLauncherLogPath), 'a');
 			try {
@@ -95,6 +90,26 @@ export class PreviewHubProcessService extends Disposable {
 			this.log.error('[Preview Hub] Start failed', id, error);
 			throw error;
 		} finally { this.busy.delete(id); }
+	}
+
+	private async launchEnvironment(): Promise<IProcessEnvironment> {
+		// The shell resolver returns overrides, and intentionally returns {} for CLI launches.
+		const env = { ...process.env, ...await this.environment() };
+		// Never turn a spawned dev app into Node or pass incomplete indexed Git overrides.
+		delete env.ELECTRON_RUN_AS_NODE;
+		delete env.GIT_CONFIG_COUNT;
+		delete env.GIT_CONFIG_PARAMETERS;
+		return env;
+	}
+
+	async openPideWindow(): Promise<void> {
+		const app = this.app('pide');
+		const root = await realpath(join(this.projects, app.folder));
+		const matches = await findPreviewHubProcesses(app, root, await readPreviewHubProcesses());
+		const running = matches.get('app')?.[0];
+		if (!running) { await this.start('pide'); return; }
+		await openPreviewHubPideWindow(root, running.cmd, await this.launchEnvironment());
+		this.log.info('[Preview Hub] Opened another Pide dev window');
 	}
 
 	async stop(id: PreviewHubAppId): Promise<void> {

@@ -22,5 +22,6 @@ export interface IPreviewHubService {
 	getSnapshot(): Promise<PreviewHubSnapshot>;
 	start(id: PreviewHubAppId): Promise<void>;
 	stop(id: PreviewHubAppId): Promise<void>;
+	openPideWindow(): Promise<void>;
 	setCaffeine(enabled: boolean): Promise<void>;
 }
