@@ -7,8 +7,8 @@ import { $, addDisposableListener, append, getWindow } from '../../../../../base
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 
-// Match Cody's distance before showing its scroll-to-bottom control.
-const bottomDistanceThreshold = 150;
+// Only follow near the bottom so scrolling up yields control quickly.
+const bottomDistanceThreshold = 20;
 
 /** Keeps transcript scrolling user-owned while streaming replaces message nodes. */
 export class PiChatBodyScroll extends Disposable {
