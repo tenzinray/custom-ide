@@ -29,6 +29,7 @@ import { PiChatQueuedPrompt, PiChatRunEvent, PiChatRunSnapshot } from '../common
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { PiChatFileLinkService } from './PiChatFileLinkService.js';
 import { decoratePiChatFileLinks } from './body/PiChatFileLinks.js';
+import { decoratePiChatPermissionLinks } from './body/PiChatPermissionLinks.js';
 import { PiChatInputCacheService } from './PiChatInputCacheService.js';
 import { IPiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
 import { IPiChatSelectionService, PiChatSessionOpenOptions } from './PiChatSelectionService.js';
@@ -288,7 +289,10 @@ export class PiChatConversationPane extends Disposable {
 			}, (text, button, response) => {
 				if (this.playback.value?.button === button) { this.playback.value.onClick(); }
 				else { this.playback.value = new PiChatListenPlayback(button, response, this.commands, text); }
-			}, this.markdown, this.copy, this.queued, id => { void this.cancelQueued(id); }, id => { void this.sendQueuedNow(id); }, this.summary.repoPath, (element, disposables) => decoratePiChatFileLinks(element, this.summary!.repoPath, this.fileLinks, this.hover, disposables));
+			}, this.markdown, this.copy, this.queued, id => { void this.cancelQueued(id); }, id => { void this.sendQueuedNow(id); }, this.summary.repoPath, (element, disposables) => {
+				decoratePiChatPermissionLinks(element, text => this.footerControls.value?.restore(text), disposables);
+				decoratePiChatFileLinks(element, this.summary!.repoPath, this.fileLinks, this.hover, disposables);
+			});
 		}
 		this.bodyScroll.afterRender(follow, previousTop);
 	}

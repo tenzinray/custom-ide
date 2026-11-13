@@ -132,6 +132,10 @@
 .pi-chat-prompt-editor { position: relative; display: block; width: 100%; min-height: 53px; max-height: 180px; margin-bottom: 12px; overflow-y: auto; padding: 16px 0 0; border: 0; background: transparent; color: var(--vscode-input-foreground); font: inherit; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: none; }
 .monaco-workbench .pi-chat-prompt-editor:focus { outline: none; }
 .pi-chat-prompt-editor::-webkit-scrollbar { display: none; }
+.pi-chat-permission-link { display: inline; padding: 0; border: 0; background: transparent; color: var(--vscode-charts-yellow); font: inherit; text-align: inherit; cursor: pointer; }
+.pi-chat-permission-link:hover { text-decoration: underline; }
+.pi-chat-permission-link:focus-visible { outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder); }
+.pi-chat-prompt-completion { position: absolute; right: var(--vscode-spacing-size160); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-input-placeholderForeground); font-size: var(--vscode-fontSize-body1); line-height: 1.6; pointer-events: none; }
 .pi-chat-prompt-placeholder { position: absolute; inset-inline-start: 16px; top: 16px; color: var(--vscode-input-placeholderForeground); font-size: var(--vscode-fontSize-body1); line-height: 1.6; pointer-events: none; }
 .pi-chat-file-reference { display: inline-flex; align-items: center; gap: 4px; height: 1.25em; padding: 0 4px; border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); line-height: 1; vertical-align: -0.15em; white-space: nowrap; user-select: all; }
 .pi-chat-file-reference .codicon { font-size: 12px; }

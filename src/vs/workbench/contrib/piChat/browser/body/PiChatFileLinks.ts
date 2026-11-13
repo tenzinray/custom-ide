@@ -69,7 +69,7 @@ export function decoratePiChatFileLinks(root: HTMLElement, repoPath: string, lin
 	while (walker.nextNode()) {
 		const node = walker.currentNode as Text;
 		const parent = node.parentElement;
-		if (parent?.closest('.pi-chat-assistant-text, [data-pi-file-path]') && !parent.closest('a, pre, script, style')) { nodes.push(node); }
+		if (parent?.closest('.pi-chat-assistant-text, [data-pi-file-path]') && !parent.closest('a, button, pre, script, style')) { nodes.push(node); }
 	}
 	for (const node of nodes) {
 		const text = node.data;

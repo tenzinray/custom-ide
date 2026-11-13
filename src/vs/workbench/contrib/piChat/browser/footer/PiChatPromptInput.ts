@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { PiChatInputCacheService } from '../PiChatInputCacheService.js';
 import { PiChatPromptEditor } from './PiChatPromptEditor.js';
+import { PiChatPromptCompletion } from './PiChatPromptCompletion.js';
 
 /** Owns only keystrokes, inline references, input history, and crash-safe draft persistence. */
 export class PiChatPromptInput extends Disposable {
@@ -17,11 +18,17 @@ export class PiChatPromptInput extends Disposable {
 	private originalDraft = '';
 	private submitting = false;
 	private dictating = false;
+	private readonly completion: PiChatPromptCompletion;
 
 	constructor(parent: HTMLElement, private readonly sessionId: string | undefined, private readonly cache: PiChatInputCacheService, private readonly onSend: (text: string) => Promise<void>, private readonly onChange: () => void) {
 		super();
 		this.input = this._register(new PiChatPromptEditor(parent, !sessionId, sessionId ? localize('piChat.messagePlaceholder', "Type here...") : localize('piChat.chooseConversation', "Select a conversation or start a new chat...")));
 		this.input.value = sessionId ? cache.getDraft(sessionId) : '';
+		this.completion = this._register(new PiChatPromptCompletion(this.input, () => !this.dictating, () => {
+			this.historyIndex = -1;
+			this.cacheDraft();
+			this.onChange();
+		}));
 		this._register(addDisposableListener(this.input.element, 'input', () => {
 			this.historyIndex = -1;
 			this.cacheDraft();
@@ -46,7 +53,7 @@ export class PiChatPromptInput extends Disposable {
 
 	get canSend(): boolean { return !!this.sessionId && !this.submitting && !this.dictating && !!this.input.value.trim(); }
 
-	setDictating(dictating: boolean): void { this.dictating = dictating; this.onChange(); }
+	setDictating(dictating: boolean): void { this.dictating = dictating; this.completion.refresh(); this.onChange(); }
 
 	/** Replace only the span owned by the active dictation, preserving the rest of the draft. */
 	replaceDictation(start: number, length: number, text: string): void {
@@ -79,6 +86,7 @@ export class PiChatPromptInput extends Disposable {
 
 	private cacheDraft(): void {
 		if (this.sessionId) { this.cache.setDraft(this.sessionId, this.input.value); }
+		this.completion.refresh();
 	}
 
 	private navigate(event: KeyboardEvent): void {
