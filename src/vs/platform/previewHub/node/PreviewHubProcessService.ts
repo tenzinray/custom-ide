@@ -61,7 +61,9 @@ export class PreviewHubProcessService extends Disposable {
 				if (matches.get('watcher')?.length) { command = app.launchCommand; }
 				else if (matches.get('app')?.length) { command = app.watchCommand; }
 			}
-			const env = { ...await this.environment() };
+			// The shell resolver returns overrides, and intentionally returns {} for CLI launches.
+			// Preserve the inherited PATH/HOME instead of spawning with an empty environment.
+			const env = { ...process.env, ...await this.environment() };
 			// Electron's main-process environment must not turn a spawned dev app into Node.
 			delete env.ELECTRON_RUN_AS_NODE;
 			delete env.GIT_CONFIG_COUNT;
@@ -84,6 +86,9 @@ export class PreviewHubProcessService extends Disposable {
 					child.once('error', error => { this.children.delete(id); reject(error); });
 				});
 				this.log.info('[Preview Hub] Started', { id, pid: child.pid, command });
+			} catch (error) {
+				await output.write(`[Preview Hub] Start failed: ${error instanceof Error ? error.message : String(error)}\n`);
+				throw error;
 			} finally { await output.close(); }
 		} catch (error) {
 			this.errors.set(id, error instanceof Error ? error.message : String(error));

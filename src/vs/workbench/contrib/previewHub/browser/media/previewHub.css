@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.preview-hub { height: 100%; overflow-y: auto; padding: var(--vscode-spacing-size120); box-sizing: border-box; }
+.preview-hub { height: 100%; overflow-y: auto; scrollbar-width: none; padding: var(--vscode-spacing-size120); box-sizing: border-box; }
+.preview-hub::-webkit-scrollbar { display: none; }
 .preview-hub-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vscode-spacing-size80); margin-bottom: var(--vscode-spacing-size160); }
 .preview-hub-body { display: flex; flex-direction: column; gap: var(--vscode-spacing-size120); }
 .preview-hub-app { padding: var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid var(--vscode-panel-border); border-radius: var(--vscode-cornerRadius-medium); }

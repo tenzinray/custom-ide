@@ -135,8 +135,8 @@ suite('PreviewHub presentation', () => {
 			const filledWithoutSecondaryToken = fallbackBackgrounds.every(color => color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent');
 			action.checked = false;
 			header.update({ enabled: false });
-			assert.deepStrictEqual({ off, on, offAgain: color('.preview-hub-titlebar-caffeine .codicon-coffee'), hubOff: color('.preview-hub-caffeine .codicon-coffee'), stopped, neutralButtons, filledWithoutSecondaryToken }, {
-				off: 'rgb(153, 153, 153)', on: Array(3).fill('rgb(40, 167, 69)'), offAgain: 'rgb(153, 153, 153)', hubOff: 'rgb(153, 153, 153)', stopped: 'rgb(153, 153, 153)', neutralButtons: true, filledWithoutSecondaryToken: true,
+			assert.deepStrictEqual({ off, on, offAgain: color('.preview-hub-titlebar-caffeine .codicon-coffee'), hubOff: color('.preview-hub-caffeine .codicon-coffee'), stopped, neutralButtons, filledWithoutSecondaryToken, scrollbar: mainWindow.getComputedStyle(hub).scrollbarWidth }, {
+				off: 'rgb(153, 153, 153)', on: Array(3).fill('rgb(40, 167, 69)'), offAgain: 'rgb(153, 153, 153)', hubOff: 'rgb(153, 153, 153)', stopped: 'rgb(153, 153, 153)', neutralButtons: true, filledWithoutSecondaryToken: true, scrollbar: 'none',
 			});
 		} finally { workbench.remove(); }
 	});

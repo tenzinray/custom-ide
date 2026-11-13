@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtemp, mkdir, writeFile, rm } from 'fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'fs/promises';
+import { watch } from 'fs';
 import { tmpdir } from 'os';
-import { join } from '../../../../base/common/path.js';
-import { timeout } from '../../../../base/common/async.js';
+import { dirname, join } from '../../../../base/common/path.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { previewHubApps } from '../../common/previewHubApps.js';
@@ -42,31 +43,47 @@ suite('PreviewHubProcesses', () => {
 		await assert.rejects(() => stopPreviewHubProcesses([{ pid: process.pid, ppid: 1, cmd: 'self' }], []), /Cannot stop the Pide instance/);
 	});
 
-	test('starts, detects, and stops only its synthetic app, without duplicating an already running app', async function () {
-		if (process.platform !== 'darwin') { this.skip(); }
-		this.timeout(20_000);
-		const directory = await mkdtemp(join(tmpdir(), 'preview-hub-process-'));
-		const root = join(directory, 'brain-wave');
-		const service = store.add(new PreviewHubProcessService(directory, async () => ({ ...process.env }), new NullLogService()));
-		try {
-			await mkdir(join(root, 'node_modules/vite/bin'), { recursive: true });
-			await writeFile(join(root, 'package.json'), JSON.stringify({ scripts: { dev: 'node node_modules/vite/bin/vite.js' } }));
-			await writeFile(join(root, 'node_modules/vite/bin/vite.js'), 'require("node:http").createServer((req,res)=>res.end("ok")).listen(0,"127.0.0.1");');
-			await service.start('brain-wave');
-			let state = (await service.snapshot())[0];
-			for (let attempt = 0; attempt < 30 && !state.previewUrl; attempt++) { await timeout(100); state = (await service.snapshot())[0]; }
-			const first = state;
-			await service.start('brain-wave');
-			const second = (await service.snapshot())[0];
-			await service.stop('brain-wave');
-			const stopped = (await service.snapshot())[0];
-			assert.deepStrictEqual({ running: first.phase, sameUrl: first.previewUrl === second.previewUrl, hasUrl: !!first.previewUrl, hasPid: !!first.processes?.some(entry => entry.pid > 0 && entry.urls.includes(first.previewUrl!)), stopped: stopped.phase, component: stopped.components[0].running }, {
-				running: 'running', sameUrl: true, hasUrl: true, hasPid: true, stopped: 'stopped', component: false,
-			});
-		} finally {
-			await service.stop('brain-wave').catch(() => {});
-			service.dispose();
-			await rm(directory, { recursive: true, force: true });
-		}
-	});
+	for (const app of previewHubApps.filter(app => app.id !== 'pide')) {
+		test(`${app.id}: empty shell overrides preserve npm PATH and allow stop then restart`, async function () {
+			if (process.platform !== 'darwin') { this.skip(); }
+			this.timeout(20_000);
+			const directory = await mkdtemp(join(tmpdir(), 'preview-hub-process-'));
+			const root = join(directory, app.folder);
+			const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
+			const readState = async () => (await service.snapshot()).find(state => state.id === app.id)!;
+			const startServer = async () => {
+				await rm(join(root, 'ready'), { force: true });
+				const ready = new DeferredPromise<boolean>();
+				const watcher = watch(root, (_event, filename) => {
+					if (filename === 'ready') {
+						void readFile(join(root, 'ready'), 'utf8').then(value => { if (value === 'ready') { void ready.complete(true); } }, () => {});
+					}
+				});
+				try {
+					await service.start(app.id);
+					assert.strictEqual(await raceTimeout(ready.p, 10_000), true, 'Server did not signal that it is listening');
+					return await readState();
+				} finally { watcher.close(); }
+			};
+			try {
+				const script = app.id === 'brain-wave' ? 'node_modules/vite/bin/vite.js' : 'logs/expo-start-logged.js';
+				await mkdir(dirname(join(root, script)), { recursive: true });
+				await writeFile(join(root, 'package.json'), JSON.stringify({ scripts: { [app.command[2]]: `node ${script}` } }));
+				await writeFile(join(root, script), 'require("node:http").createServer((req,res)=>res.end("ok")).listen(0,"127.0.0.1",()=>require("node:fs").writeFileSync("ready","ready"));');
+				const first = await startServer();
+				await service.start(app.id);
+				const second = await readState();
+				await service.stop(app.id);
+				const stopped = await readState();
+				const restarted = await startServer();
+				assert.deepStrictEqual({ running: first.phase, secondPids: second.processes?.map(entry => entry.pid), hasPort: !!first.processes?.some(entry => entry.urls.length), stopped: stopped.phase, component: stopped.components[0].running, restarted: restarted.phase, restartedPort: !!restarted.processes?.some(entry => entry.urls.length) }, {
+					running: 'running', secondPids: first.processes?.map(entry => entry.pid), hasPort: true, stopped: 'stopped', component: false, restarted: 'running', restartedPort: true,
+				});
+			} finally {
+				await service.stop(app.id).catch(() => {});
+				service.dispose();
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+	}
 });
