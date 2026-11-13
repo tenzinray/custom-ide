@@ -10,7 +10,7 @@
 .preview-hub-app-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--vscode-spacing-size80); }
 .preview-hub-app h3 { margin: 0; font-size: var(--vscode-fontSize-heading3); font-weight: var(--vscode-fontWeight-semiBold); }
 .preview-hub-phase { display: inline-flex; align-items: center; gap: var(--vscode-spacing-size40); white-space: nowrap; }
-.preview-hub-app[data-phase="running"] .preview-hub-phase { color: var(--vscode-charts-green); }
+.preview-hub-app[data-phase="running"] .preview-hub-phase .codicon-check { color: var(--vscode-charts-green); }
 .preview-hub-app[data-phase="starting"] .preview-hub-phase, .preview-hub-app[data-phase="stopping"] .preview-hub-phase { color: var(--vscode-charts-yellow); }
 .preview-hub-phase .codicon { font-size: var(--vscode-codiconFontSize); }
 .preview-hub-phase, .preview-hub-note, .preview-hub-command, .preview-hub-footer { color: var(--vscode-descriptionForeground); font-size: var(--vscode-fontSize-body2); }
@@ -22,32 +22,30 @@
 .preview-hub-component { display: flex; justify-content: space-between; gap: var(--vscode-spacing-size80); font-size: var(--vscode-fontSize-label1); }
 .preview-hub-component > :last-child { color: var(--vscode-descriptionForeground); }
 .preview-hub-component > .running { color: var(--vscode-testing-iconPassed); }
-.preview-hub-app[data-phase="stopped"] .preview-hub-phase, .preview-hub-app[data-phase="error"] .preview-hub-phase, .preview-hub-error { color: var(--vscode-errorForeground); }
+.preview-hub-app[data-phase="error"] .preview-hub-phase, .preview-hub-error { color: var(--vscode-errorForeground); }
 .preview-hub-actions, .preview-hub-logs { display: flex; flex-wrap: wrap; gap: var(--vscode-spacing-size80); }
 .preview-hub-logs { margin-top: var(--vscode-spacing-size120); }
 .preview-hub-log-separator { margin: var(--vscode-spacing-size120) 0 0; border: 0; border-top: var(--vscode-strokeThickness) solid var(--vscode-panel-border); }
-.monaco-workbench .preview-hub .preview-hub-actions button { min-height: 28px; padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-button-foreground) 30%, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: var(--vscode-fontWeight-semiBold); }
-.monaco-workbench .preview-hub .preview-hub-actions button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-.monaco-workbench .preview-hub .preview-hub-actions .preview-hub-start { background: color-mix(in srgb, var(--vscode-charts-green) 25%, var(--vscode-sideBar-background)); border-color: var(--vscode-charts-green); color: var(--vscode-foreground); }
-.monaco-workbench .preview-hub .preview-hub-actions .preview-hub-start:hover:not(:disabled) { background: color-mix(in srgb, var(--vscode-charts-green) 40%, var(--vscode-sideBar-background)); }
-.monaco-workbench .preview-hub .preview-hub-actions .preview-hub-stop { background: color-mix(in srgb, var(--vscode-errorForeground) 20%, var(--vscode-sideBar-background)); border-color: var(--vscode-errorForeground); color: var(--vscode-foreground); }
-.monaco-workbench .preview-hub .preview-hub-actions .preview-hub-stop:hover:not(:disabled) { background: color-mix(in srgb, var(--vscode-errorForeground) 35%, var(--vscode-sideBar-background)); }
+.monaco-workbench .preview-hub .preview-hub-actions button { min-height: 28px; padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-foreground) 25%, transparent); font-weight: var(--vscode-fontWeight-semiBold); }
 .preview-hub-processes { margin-top: var(--vscode-spacing-size120); font-size: var(--vscode-fontSize-body2); color: var(--vscode-descriptionForeground); }
 .preview-hub-processes summary { cursor: pointer; }
 .preview-hub-process-list { display: flex; flex-direction: column; gap: var(--vscode-spacing-size80); margin-top: var(--vscode-spacing-size80); }
 .preview-hub-process { display: flex; flex-direction: column; gap: var(--vscode-spacing-size40); padding: var(--vscode-spacing-size80); border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-editor-background); overflow-wrap: anywhere; }
 .preview-hub-process strong { color: var(--vscode-foreground); font-weight: var(--vscode-fontWeight-semiBold); }
 .preview-hub-process-address { color: var(--vscode-textLink-foreground); }
-.preview-hub button { padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80); border: 0; border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: pointer; font-size: var(--vscode-fontSize-label1); }
-.preview-hub button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+.preview-hub button { padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80); border: 0; border-radius: var(--vscode-cornerRadius-small); background: color-mix(in srgb, var(--vscode-foreground) 12%, var(--vscode-sideBar-background)); color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-fontSize-label1); }
+.preview-hub button:hover:not(:disabled) { background: color-mix(in srgb, var(--vscode-foreground) 18%, var(--vscode-sideBar-background)); }
 .preview-hub button:focus-visible { outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder); outline-offset: var(--vscode-spacing-size20); }
 .preview-hub button:disabled { opacity: .5; cursor: default; }
 .preview-hub .preview-hub-logs button { padding: 0; background: transparent; color: var(--vscode-textLink-foreground); font-size: var(--vscode-fontSize-body2); }
 .preview-hub .preview-hub-logs button:hover { text-decoration: underline; background: transparent; }
-.preview-hub .preview-hub-caffeine[aria-pressed="true"] { color: var(--vscode-charts-yellow); }
+.preview-hub .preview-hub-caffeine { display: inline-flex; align-items: center; gap: var(--vscode-spacing-size60); }
+.monaco-workbench .preview-hub .preview-hub-caffeine .codicon-coffee { color: var(--vscode-descriptionForeground); }
+.monaco-workbench .preview-hub .preview-hub-caffeine[aria-pressed="true"] .codicon-coffee { color: var(--vscode-charts-green); }
 .preview-hub-footer { margin-top: var(--vscode-spacing-size160); line-height: 1.6; }
 .preview-hub-error:empty { display: none; }
 
-.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label { display: inline-flex; align-items: center; color: var(--vscode-descriptionForeground); }
-.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label.checked { color: var(--vscode-charts-green); }
+.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label { display: inline-flex; align-items: center; }
+.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label .codicon-coffee { color: var(--vscode-descriptionForeground); }
+.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label.checked .codicon-coffee { color: var(--vscode-charts-green); }
 .preview-hub-titlebar-caffeine .codicon { font-size: var(--vscode-codiconFontSize); }

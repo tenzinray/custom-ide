@@ -11,22 +11,19 @@ import { PreviewHubCaffeineState } from '../../../../../platform/previewHub/comm
 /** Compact keep-awake presentation shared with the main header's app-wide state. */
 export class PreviewHubHeader extends Disposable {
 	private readonly toggle: HTMLButtonElement;
-	private readonly status: HTMLElement;
+	private readonly label: HTMLElement;
 
 	constructor(parent: HTMLElement, onToggle: () => void) {
 		super();
 		const header = append(parent, $('header.preview-hub-header'));
-		this.toggle = append(header, $('button.preview-hub-caffeine', { type: 'button', 'aria-pressed': 'false' }, localize('previewHub.caffeinate', "Caffeinate"))) as HTMLButtonElement;
+		this.toggle = append(header, $('button.preview-hub-caffeine', { type: 'button', 'aria-pressed': 'false' })) as HTMLButtonElement;
+		append(this.toggle, $('span.codicon.codicon-coffee', { 'aria-hidden': 'true' }));
+		this.label = append(this.toggle, $('span', {}, localize('previewHub.caffeinate', "Caffeinate")));
 		this._register(addDisposableListener(this.toggle, 'click', onToggle));
-		this.status = append(header, $('span.preview-hub-note', { role: 'status' }));
 	}
 
 	update(state: PreviewHubCaffeineState): void {
 		this.toggle.setAttribute('aria-pressed', String(state.enabled));
-		this.toggle.textContent = state.enabled ? localize('previewHub.uncaffeinate', "Uncaffeinate") : localize('previewHub.caffeinate', "Caffeinate");
-		this.status.textContent = state.enabled
-			? localize('previewHub.displayAwake', "Display stays awake")
-			: state.reason === 'lowBattery' ? localize('previewHub.batteryOff', "Off: low battery")
-				: state.reason === 'batteryUnavailable' ? localize('previewHub.batteryUnknown', "Off: battery unavailable") : localize('previewHub.sleepNormal', "Normal sleep");
+		this.label.textContent = state.enabled ? localize('previewHub.uncaffeinate', "Uncaffeinate") : localize('previewHub.caffeinate', "Caffeinate");
 	}
 }

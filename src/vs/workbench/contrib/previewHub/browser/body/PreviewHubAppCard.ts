@@ -81,7 +81,7 @@ export class PreviewHubAppCard extends Disposable {
 
 	update(state: PreviewHubAppState, pending: boolean): void {
 		this.phaseText.textContent = phaseLabel(state.phase);
-		const icon = state.phase === 'running' ? 'pass-filled' : state.phase === 'error' ? 'error' : state.phase === 'starting' || state.phase === 'stopping' ? 'loading' : 'debug-stop';
+		const icon = state.phase === 'running' ? 'check' : state.phase === 'error' ? 'error' : state.phase === 'starting' || state.phase === 'stopping' ? 'loading' : 'debug-stop';
 		this.phaseIcon.className = `codicon codicon-${icon}`;
 		this.element.dataset.phase = state.phase;
 		this.processes.update(state.processes);

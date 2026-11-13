@@ -31,7 +31,6 @@ export class PreviewHubProcesses {
 			const row = append(this.list, $('.preview-hub-process'));
 			const component = this.app.components.find(component => component.id === process.componentId);
 			append(row, $('strong', {}, localize('previewHub.processPid', "{0} · PID {1}", component?.name ?? process.componentId, process.pid)));
-			append(row, $('code.preview-hub-process-command', {}, process.cmd));
 			for (const url of process.urls) { append(row, $('code.preview-hub-process-address', {}, url)); }
 			if (!process.urls.length) { append(row, $('span.preview-hub-note', {}, localize('previewHub.noPort', "No listening localhost port"))); }
 		}

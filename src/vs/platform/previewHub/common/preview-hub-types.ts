@@ -8,7 +8,7 @@ import { PreviewHubAppId, PreviewHubComponentId } from './previewHubApps.js';
 
 export type PreviewHubPhase = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
 
-export interface PreviewHubProcessState extends Pick<ProcessItem, 'pid' | 'cmd'> {
+export interface PreviewHubProcessState extends Pick<ProcessItem, 'pid'> {
 	readonly componentId: PreviewHubComponentId;
 	readonly urls: readonly string[];
 }

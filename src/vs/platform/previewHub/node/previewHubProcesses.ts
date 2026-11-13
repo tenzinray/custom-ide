@@ -96,5 +96,5 @@ export async function getPreviewHubProcessDetails(app: typeof previewHubApps[num
 		const { stdout } = await exec('/usr/sbin/lsof', ['-a', '-p', processes.map(entry => entry.pid).join(','), '-iTCP', '-sTCP:LISTEN', '-Fn'], { timeout: 3000 });
 		listeners = parsePreviewHubListeners(stdout);
 	} catch { /* A running watcher or launcher may have no listening sockets. Keep its PID visible. */ }
-	return processes.map(entry => ({ pid: entry.pid, cmd: entry.cmd, componentId: entry.componentId, urls: listeners.get(entry.pid) ?? [] }));
+	return processes.map(entry => ({ pid: entry.pid, componentId: entry.componentId, urls: listeners.get(entry.pid) ?? [] }));
 }
