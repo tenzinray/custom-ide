@@ -6,9 +6,8 @@
 import { $, append, clearNode } from '../../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { localize } from '../../../../../nls.js';
 
-/** Persistent text and active styling make keep-awake state visible without hovering. */
+/** Icon-only keep-awake control; checked state colors the cup without adding chrome. */
 export class PreviewHubCaffeineButton extends ActionViewItem {
 	constructor(action: IAction, options: IActionViewItemOptions) {
 		super(undefined, action, { ...options, icon: false, label: true });
@@ -23,13 +22,5 @@ export class PreviewHubCaffeineButton extends ActionViewItem {
 		if (!this.label) { return; }
 		clearNode(this.label);
 		append(this.label, $('span.codicon.codicon-coffee', { 'aria-hidden': 'true' }));
-		append(this.label, $('span.preview-hub-caffeine-label', {}, this.action.checked
-			? localize('previewHub.caffeineOn', "Caffeine On")
-			: localize('previewHub.caffeineOff', "Caffeine Off")));
-	}
-
-	protected override updateChecked(): void {
-		super.updateChecked();
-		this.updateLabel();
 	}
 }

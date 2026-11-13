@@ -28,7 +28,6 @@
 .preview-hub-footer { margin-top: var(--vscode-spacing-size160); line-height: 1.6; }
 .preview-hub-error:empty { display: none; }
 
-.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label { display: inline-flex; align-items: center; gap: var(--vscode-spacing-size60); padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80); border-radius: var(--vscode-cornerRadius-small); color: var(--vscode-descriptionForeground); }
-.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label.checked { color: var(--vscode-charts-yellow); background: color-mix(in srgb, var(--vscode-charts-yellow) 15%, transparent); }
-.preview-hub-titlebar-caffeine .preview-hub-caffeine-label { font-size: var(--vscode-fontSize-label1); white-space: nowrap; }
+.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label { display: inline-flex; align-items: center; color: var(--vscode-descriptionForeground); }
+.monaco-workbench .part.titlebar .preview-hub-titlebar-caffeine .action-label.checked { color: var(--vscode-charts-green); }
 .preview-hub-titlebar-caffeine .codicon { font-size: var(--vscode-codiconFontSize); }

@@ -42,7 +42,7 @@ suite('PreviewHub presentation', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
-	test('titlebar always shows On or Off and updates its pressed and highlighted state', () => {
+	test('titlebar stays icon-only and toggles the checked state used to color the cup', () => {
 		const host = mainWindow.document.createElement('div');
 		const action = store.add(new Action('caffeine', 'Caffeinate'));
 		action.checked = false;
@@ -54,8 +54,8 @@ suite('PreviewHub presentation', () => {
 		const on = read();
 		action.checked = false;
 		assert.deepStrictEqual({ off, on, offAgain: read() }, {
-			off: { text: 'Caffeine Off', pressed: 'false', highlighted: false, coffee: true },
-			on: { text: 'Caffeine On', pressed: 'true', highlighted: true, coffee: true },
+			off: { text: '', pressed: 'false', highlighted: false, coffee: true },
+			on: { text: '', pressed: 'true', highlighted: true, coffee: true },
 			offAgain: off,
 		});
 	});
