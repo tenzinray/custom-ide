@@ -8,5 +8,5 @@ export const remoteDatabasePermissionPhrase = 'I give you permission to apply th
 
 export const piChatQuickPhrases = [
 	{ trigger: 'perm', text: remoteDatabasePermissionPhrase },
-	{ trigger: 'cont', text: 'continue' },
+	{ trigger: 'co', text: 'continue' },
 ] as const;

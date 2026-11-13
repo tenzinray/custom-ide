@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -121,7 +122,7 @@ suite('PiChatQuickPhrases', () => {
 		const content = store.add(renderMarkdown(new MarkdownString(`Before **${remoteDatabasePermissionPhrase}** After\n\nI give you **permission** to apply this change to the remote database.`)));
 		content.element.classList.add('pi-chat-assistant-text');
 		host.append(content.element);
-		decoratePiChatPermissionLinks(host, text => prompt.restore(text), store);
+		decoratePiChatPermissionLinks(host, text => prompt.restore(text), store.add(new DisposableStore()));
 		const buttons = Array.from(content.element.querySelectorAll<HTMLButtonElement>('.pi-chat-permission-link'));
 		buttons[1].click();
 		assert.deepStrictEqual({ labels: buttons.map(button => button.textContent), text: prompt.input.value, cached: cache.getDraft('chat-a'), other: other.input.value, sent, focused: mainWindow.document.activeElement === prompt.input.element }, {
@@ -133,7 +134,7 @@ suite('PiChatQuickPhrases', () => {
 		const content = store.add(renderMarkdown(new MarkdownString(`\`${remoteDatabasePermissionPhrase}\``)));
 		content.element.classList.add('pi-chat-assistant-text');
 		host.append(content.element);
-		decoratePiChatPermissionLinks(host, text => prompt.restore(text), store);
+		decoratePiChatPermissionLinks(host, text => prompt.restore(text), store.add(new DisposableStore()));
 		const button = content.element.querySelector<HTMLButtonElement>('.pi-chat-permission-link')!;
 		button.click();
 		const emptyDraft = prompt.input.value;
@@ -152,7 +153,7 @@ suite('PiChatQuickPhrases', () => {
 		user.className = 'pi-chat-user';
 		user.textContent = remoteDatabasePermissionPhrase;
 		host.append(user);
-		decoratePiChatPermissionLinks(host, text => prompt.restore(text), store);
+		decoratePiChatPermissionLinks(host, text => prompt.restore(text), store.add(new DisposableStore()));
 		assert.deepStrictEqual({ buttons: content.element.querySelectorAll('.pi-chat-permission-link').length, codeButtons: content.element.querySelectorAll('pre button').length, linkButtons: content.element.querySelectorAll('a button').length, userButtons: user.querySelectorAll('button').length }, {
 			buttons: 2, codeButtons: 0, linkButtons: 0, userButtons: 0,
 		});
