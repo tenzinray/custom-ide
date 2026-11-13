@@ -79,6 +79,9 @@ import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js'
 import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { appleSpeechChannelName } from '../../platform/localTranscription/common/localTranscription.js';
+import { previewHubChannel } from '../../platform/previewHub/common/previewHub.js';
+import { PreviewHubService } from '../../platform/previewHub/electron-main/PreviewHubService.js';
+import { getProjectsDirectory } from '../../platform/workspaces/common/projectDirectories.js';
 import { AppleSpeechService } from '../../platform/localTranscription/electron-main/AppleSpeechService.js';
 import { IStateService } from '../../platform/state/node/state.js';
 import { StorageDatabaseChannel } from '../../platform/storage/electron-main/storageIpc.js';
@@ -1460,6 +1463,11 @@ export class CodeApplication extends Disposable {
 		if (isMacintosh) {
 			const appleSpeech = disposables.add(accessor.get(IInstantiationService).createInstance(AppleSpeechService, undefined));
 			mainProcessElectronServer.registerChannel(appleSpeechChannelName, ProxyChannel.fromService(appleSpeech, disposables));
+
+			const previewHub = disposables.add(accessor.get(IInstantiationService).createInstance(PreviewHubService,
+				getProjectsDirectory(this.environmentMainService.userHome).fsPath,
+				() => this.resolveShellEnvironment(this.environmentMainService.args, process.env, false)));
+			mainProcessElectronServer.registerChannel(previewHubChannel, ProxyChannel.fromService(previewHub, disposables));
 		}
 
 		// Signing

@@ -215,14 +215,16 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 			title: OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE,
 			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: false,
-			menu: {
-				id: MenuId.TitleBarAdjacentCenter,
-				order: -1000,
-				when: ContextKeyExpr.and(
-					OPEN_AGENTS_WINDOW_PRECONDITION,
-					ContextKeyExpr.notEquals(`config.${ChatConfiguration.TitleBarOpenInAgentsWindowEnabled}`, false),
-				),
-			},
+			// Preview Hub's Caffeinate control replaces this titlebar entry.
+			// Keep the action and other Open in Agents entry points available.
+			// menu: {
+			// 	id: MenuId.TitleBarAdjacentCenter,
+			// 	order: -1000,
+			// 	when: ContextKeyExpr.and(
+			// 		OPEN_AGENTS_WINDOW_PRECONDITION,
+			// 		ContextKeyExpr.notEquals(`config.${ChatConfiguration.TitleBarOpenInAgentsWindowEnabled}`, false),
+			// 	),
+			// },
 		});
 	}
 

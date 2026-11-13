@@ -1,0 +1,29 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.preview-hub { height: 100%; overflow-y: auto; padding: var(--vscode-spacing-size120); box-sizing: border-box; }
+.preview-hub-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vscode-spacing-size80); margin-bottom: var(--vscode-spacing-size160); }
+.preview-hub-body { display: flex; flex-direction: column; gap: var(--vscode-spacing-size120); }
+.preview-hub-app { padding: var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid var(--vscode-panel-border); border-radius: var(--vscode-cornerRadius-medium); }
+.preview-hub-app-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--vscode-spacing-size80); }
+.preview-hub-app h3 { margin: 0; font-size: var(--vscode-fontSize-heading3); font-weight: var(--vscode-fontWeight-semiBold); }
+.preview-hub-phase, .preview-hub-note, .preview-hub-command, .preview-hub-footer { color: var(--vscode-descriptionForeground); font-size: var(--vscode-fontSize-body2); }
+.preview-hub-command { display: block; margin-top: var(--vscode-spacing-size80); overflow-wrap: anywhere; }
+.preview-hub-components { display: flex; flex-direction: column; gap: var(--vscode-spacing-size40); margin: var(--vscode-spacing-size120) 0; }
+.preview-hub-component { display: flex; justify-content: space-between; gap: var(--vscode-spacing-size80); font-size: var(--vscode-fontSize-label1); }
+.preview-hub-component > :last-child { color: var(--vscode-descriptionForeground); }
+.preview-hub-component > .running { color: var(--vscode-testing-iconPassed); }
+.preview-hub-app[data-phase="error"] .preview-hub-phase, .preview-hub-error { color: var(--vscode-errorForeground); }
+.preview-hub-actions, .preview-hub-logs { display: flex; flex-wrap: wrap; gap: var(--vscode-spacing-size80); }
+.preview-hub-logs { margin-top: var(--vscode-spacing-size120); }
+.preview-hub button { padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80); border: 0; border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: pointer; font-size: var(--vscode-fontSize-label1); }
+.preview-hub button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+.preview-hub button:focus-visible { outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder); outline-offset: var(--vscode-spacing-size20); }
+.preview-hub button:disabled { opacity: .5; cursor: default; }
+.preview-hub .preview-hub-logs button { padding: 0; background: transparent; color: var(--vscode-textLink-foreground); font-size: var(--vscode-fontSize-body2); }
+.preview-hub .preview-hub-logs button:hover { text-decoration: underline; background: transparent; }
+.preview-hub .preview-hub-caffeine[aria-pressed="true"] { color: var(--vscode-charts-yellow); }
+.preview-hub-footer { margin-top: var(--vscode-spacing-size160); line-height: 1.6; }
+.preview-hub-error:empty { display: none; }

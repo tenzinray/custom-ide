@@ -10,6 +10,13 @@ LOGS="$ROOT/logs"
 mkdir -p "$LOGS"
 PID_FILE="$LOGS/watch.pid"
 
+# Preview Hub keeps the launcher attached so it can track and stop this exact dev app.
+launcher_args=(--repo "$ROOT" --skip-prelaunch --persistent-profile)
+if [[ "${1:-}" == "--preview-hub" ]]; then
+	launcher_args+=(--wait)
+	shift
+fi
+
 if [[ "${1:-}" == "--stop" ]]; then
 	if [[ -f "$PID_FILE" ]]; then
 		# Stop the full watch process tree; pnpm starts child watchers that outlive its PID.
@@ -76,9 +83,9 @@ fi
 echo "Waiting for the initial watch build to finish..."
 for ((attempt = 0; attempt < 300; attempt++)); do
 	if grep -Fq 'Finished transpilation with 0 errors' "$LOGS/watch.log" \
-		&& grep -F 'watch-client-noEmit' "$LOGS/watch.log" | grep -Fq 'with 0 errors' \
+		&& grep -E '\[watch-client(-noEmit)?[[:space:]]*\]' "$LOGS/watch.log" | grep -Fq 'with 0 errors' \
 		&& grep -F '[watch-extensions' "$LOGS/watch.log" | grep -Fq 'Finished compilation' \
-		&& grep -Fq '[watch] build finished' "$LOGS/watch.log"; then
+		&& grep -Fq '[pi-chat] Runtime bundle built' "$LOGS/watch.log"; then
 		break
 	fi
 	if ! kill -0 "$(<"$PID_FILE")" 2>/dev/null; then
@@ -96,4 +103,4 @@ done
 
 # Normal use keeps the whole profile: settings, sign-ins, extensions, pins, layout and trust.
 # Agent/test launches still use the managed launcher's isolated default.
-node "$ROOT/scripts/code-oss-launcher/launch.ts" --repo "$ROOT" --skip-prelaunch --persistent-profile -- "$@"
+node "$ROOT/scripts/code-oss-launcher/launch.ts" "${launcher_args[@]}" -- "$@"

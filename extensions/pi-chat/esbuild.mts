@@ -22,5 +22,5 @@ await runBuild({
 	mainFields: ['module', 'main'],
 	alias: { vscode: path.join(import.meta.dirname, 'vscodeRuntime.mts') },
 	outExtension: { '.js': '.mjs' },
-	banner: { js: "import { createRequire as __createRequire } from 'node:module'; import { fileURLToPath as __fileURLToPath } from 'node:url'; import { dirname as __pathDirname } from 'node:path'; const require = __createRequire(import.meta.url); const __dirname = __pathDirname(__fileURLToPath(import.meta.url));" },
-}, process.argv);
+	banner: { js: `import { createRequire as __createRequire } from 'node:module'; import { fileURLToPath as __fileURLToPath } from 'node:url'; import { dirname as __pathDirname } from 'node:path'; const require = __createRequire(import.meta.url); const __dirname = __pathDirname(__fileURLToPath(import.meta.url));` },
+}, process.argv, () => console.log('[pi-chat] Runtime bundle built'));
