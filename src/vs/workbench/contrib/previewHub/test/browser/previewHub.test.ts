@@ -126,8 +126,10 @@ suite('PreviewHub presentation', () => {
 			header.update({ enabled: true });
 			card.update({ id: 'brain-wave', phase: 'running', components: [{ id: 'frontend', running: true }], launcherLog: '/log' }, false);
 			const on = [color('.preview-hub-titlebar-caffeine .codicon-coffee'), color('.preview-hub-caffeine .codicon-coffee'), color('.preview-hub-phase .codicon-check')];
+			const runningStatuses = [...hub.querySelectorAll<HTMLElement>('.preview-hub-status')].map(status => ({ text: status.textContent, textColor: mainWindow.getComputedStyle(status.lastElementChild!).color, checkColor: mainWindow.getComputedStyle(status.querySelector('.codicon-check')!).color }));
 			card.update({ id: 'brain-wave', phase: 'stopped', components: [{ id: 'frontend', running: false }], launcherLog: '/log' }, false);
 			const stopped = color('.preview-hub-phase');
+			const stoppedStatuses = [...hub.querySelectorAll<HTMLElement>('.preview-hub-status')].map(status => ({ text: status.textContent, color: mainWindow.getComputedStyle(status.lastElementChild!).color, icons: status.querySelectorAll('.codicon').length }));
 			const backgrounds = [...hub.querySelectorAll<HTMLButtonElement>('.preview-hub-actions button')].map(button => mainWindow.getComputedStyle(button).backgroundColor);
 			const neutralButtons = backgrounds.every(color => color === backgrounds[0] && color !== 'rgba(0, 0, 0, 0)');
 			workbench.style.removeProperty('--vscode-button-secondaryBackground');
@@ -135,8 +137,8 @@ suite('PreviewHub presentation', () => {
 			const filledWithoutSecondaryToken = fallbackBackgrounds.every(color => color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent');
 			action.checked = false;
 			header.update({ enabled: false });
-			assert.deepStrictEqual({ off, on, offAgain: color('.preview-hub-titlebar-caffeine .codicon-coffee'), hubOff: color('.preview-hub-caffeine .codicon-coffee'), stopped, neutralButtons, filledWithoutSecondaryToken, scrollbar: mainWindow.getComputedStyle(hub).scrollbarWidth }, {
-				off: 'rgb(153, 153, 153)', on: Array(3).fill('rgb(40, 167, 69)'), offAgain: 'rgb(153, 153, 153)', hubOff: 'rgb(153, 153, 153)', stopped: 'rgb(153, 153, 153)', neutralButtons: true, filledWithoutSecondaryToken: true, scrollbar: 'none',
+			assert.deepStrictEqual({ off, on, offAgain: color('.preview-hub-titlebar-caffeine .codicon-coffee'), hubOff: color('.preview-hub-caffeine .codicon-coffee'), stopped, runningStatuses, stoppedStatuses, neutralButtons, filledWithoutSecondaryToken, scrollbar: mainWindow.getComputedStyle(hub).scrollbarWidth }, {
+				off: 'rgb(153, 153, 153)', on: Array(3).fill('rgb(40, 167, 69)'), offAgain: 'rgb(153, 153, 153)', hubOff: 'rgb(153, 153, 153)', stopped: 'rgb(153, 153, 153)', runningStatuses: Array(2).fill({ text: 'Running', textColor: 'rgb(40, 167, 69)', checkColor: 'rgb(40, 167, 69)' }), stoppedStatuses: Array(2).fill({ text: 'Stopped', color: 'rgb(153, 153, 153)', icons: 0 }), neutralButtons: true, filledWithoutSecondaryToken: true, scrollbar: 'none',
 			});
 		} finally { workbench.remove(); }
 	});

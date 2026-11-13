@@ -7,27 +7,17 @@ import { $, addDisposableListener, append } from '../../../../../base/browser/do
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { previewHubApps } from '../../../../../platform/previewHub/common/previewHubApps.js';
-import { PreviewHubAppState, PreviewHubPhase } from '../../../../../platform/previewHub/common/preview-hub-types.js';
+import { PreviewHubAppState } from '../../../../../platform/previewHub/common/preview-hub-types.js';
 import { PreviewHubProcesses } from './PreviewHubProcesses.js';
 
-function phaseLabel(phase: PreviewHubPhase): string {
-	switch (phase) {
-		case 'running': return localize('previewHub.running', "Running");
-		case 'starting': return localize('previewHub.starting', "Starting…");
-		case 'stopping': return localize('previewHub.stopping', "Stopping…");
-		case 'error': return localize('previewHub.failed', "Failed");
-		case 'stopped': return localize('previewHub.stopped', "Stopped");
-	}
-}
+import { PreviewHubStatus } from './PreviewHubStatus.js';
 
 /** Presentation only. The container owns service calls, errors, and editor navigation. */
 export class PreviewHubAppCard extends Disposable {
 	private readonly element: HTMLElement;
-	private readonly phase: HTMLElement;
-	private readonly phaseIcon: HTMLElement;
-	private readonly phaseText: HTMLElement;
+	private readonly phase: PreviewHubStatus;
 	private readonly processes: PreviewHubProcesses;
-	private readonly components = new Map<string, HTMLElement>();
+	private readonly components = new Map<string, PreviewHubStatus>();
 	private readonly error: HTMLElement;
 	private readonly start: HTMLButtonElement;
 	private readonly stop: HTMLButtonElement;
@@ -43,16 +33,15 @@ export class PreviewHubAppCard extends Disposable {
 		});
 		title.classList.add('preview-hub-app-title');
 		title.setAttribute('aria-expanded', 'false');
-		this.phase = append(heading, $('span.preview-hub-phase', { role: 'status' }));
-		this.phaseIcon = append(this.phase, $('span.codicon.codicon-circle-outline', { 'aria-hidden': 'true' }));
-		this.phaseText = append(this.phase, $('span', {}, localize('previewHub.checking', "Checking…")));
+		this.phase = new PreviewHubStatus(heading);
+		this.phase.element.classList.add('preview-hub-phase');
 		const command = append(this.element, $('code.preview-hub-command', {}, app.command.filter(arg => arg !== '--preview-hub').join(' ')));
 		command.hidden = true;
 		const components = append(this.element, $('.preview-hub-components'));
 		for (const component of app.components) {
 			const row = append(components, $('.preview-hub-component'));
 			append(row, $('span', {}, component.name));
-			this.components.set(component.id, append(row, $('span', {}, '—')));
+			this.components.set(component.id, new PreviewHubStatus(row));
 		}
 		if (app.id === 'lucent') { append(this.element, $('p.preview-hub-note', {}, localize('previewHub.hostedBackend', "Backend is hosted; no local backend is started."))); }
 		const actions = append(this.element, $('.preview-hub-actions'));
@@ -80,17 +69,11 @@ export class PreviewHubAppCard extends Disposable {
 	}
 
 	update(state: PreviewHubAppState, pending: boolean): void {
-		this.phaseText.textContent = phaseLabel(state.phase);
-		const icon = state.phase === 'running' ? 'check' : state.phase === 'error' ? 'error' : state.phase === 'starting' || state.phase === 'stopping' ? 'loading' : 'debug-stop';
-		this.phaseIcon.className = `codicon codicon-${icon}`;
+		this.phase.update(state.phase);
 		this.element.dataset.phase = state.phase;
 		this.processes.update(state.processes);
 		for (const component of state.components) {
-			const label = this.components.get(component.id);
-			if (label) {
-				label.textContent = component.running ? localize('previewHub.running', "Running") : localize('previewHub.stopped', "Stopped");
-				label.classList.toggle('running', component.running);
-			}
+			this.components.get(component.id)?.update(component.running ? 'running' : 'stopped');
 		}
 		const allRunning = state.components.every(component => component.running);
 		this.start.disabled = pending || allRunning || state.phase === 'starting' || state.phase === 'stopping';

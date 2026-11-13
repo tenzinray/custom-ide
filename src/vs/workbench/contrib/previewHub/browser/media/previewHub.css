@@ -10,20 +10,18 @@
 .preview-hub-app { padding: var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid var(--vscode-panel-border); border-radius: var(--vscode-cornerRadius-medium); }
 .preview-hub-app-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--vscode-spacing-size80); }
 .preview-hub-app h3 { margin: 0; font-size: var(--vscode-fontSize-heading3); font-weight: var(--vscode-fontWeight-semiBold); }
-.preview-hub-phase { display: inline-flex; align-items: center; gap: var(--vscode-spacing-size40); white-space: nowrap; }
-.preview-hub-app[data-phase="running"] .preview-hub-phase .codicon-check { color: var(--vscode-charts-green); }
-.preview-hub-app[data-phase="starting"] .preview-hub-phase, .preview-hub-app[data-phase="stopping"] .preview-hub-phase { color: var(--vscode-charts-yellow); }
-.preview-hub-phase .codicon { font-size: var(--vscode-codiconFontSize); }
-.preview-hub-phase, .preview-hub-note, .preview-hub-command, .preview-hub-footer { color: var(--vscode-descriptionForeground); font-size: var(--vscode-fontSize-body2); }
+.preview-hub-status { display: inline-flex; align-items: center; gap: var(--vscode-spacing-size40); white-space: nowrap; font-size: var(--vscode-fontSize-body2); }
+.preview-hub .preview-hub-status, .preview-hub .preview-hub-status .codicon { color: var(--vscode-descriptionForeground); }
+.preview-hub .preview-hub-status[data-phase="running"], .preview-hub .preview-hub-status[data-phase="running"] .codicon { color: var(--vscode-charts-green); }
+.preview-hub-status .codicon { font-size: var(--vscode-codiconFontSize); }
+.preview-hub-note, .preview-hub-command, .preview-hub-footer { color: var(--vscode-descriptionForeground); font-size: var(--vscode-fontSize-body2); }
 .preview-hub-command { display: block; margin-top: var(--vscode-spacing-size80); overflow-wrap: anywhere; }
 .preview-hub-command[hidden] { display: none; }
 .monaco-workbench .preview-hub .preview-hub-app-title { padding: 0; border: 0; background: transparent; color: var(--vscode-foreground); font: inherit; text-align: left; }
 .monaco-workbench .preview-hub .preview-hub-app-title:hover { background: transparent; text-decoration: underline; }
 .preview-hub-components { display: flex; flex-direction: column; gap: var(--vscode-spacing-size40); margin: var(--vscode-spacing-size120) 0; }
 .preview-hub-component { display: flex; justify-content: space-between; gap: var(--vscode-spacing-size80); font-size: var(--vscode-fontSize-label1); }
-.preview-hub-component > :last-child { color: var(--vscode-descriptionForeground); }
-.preview-hub-component > .running { color: var(--vscode-testing-iconPassed); }
-.preview-hub-app[data-phase="error"] .preview-hub-phase, .preview-hub-error { color: var(--vscode-errorForeground); }
+.preview-hub-error { color: var(--vscode-errorForeground); }
 .preview-hub-actions, .preview-hub-logs { display: flex; flex-wrap: wrap; gap: var(--vscode-spacing-size80); }
 .preview-hub-logs { margin-top: var(--vscode-spacing-size120); }
 .preview-hub-log-separator { margin: var(--vscode-spacing-size120) 0 0; border: 0; border-top: var(--vscode-strokeThickness) solid var(--vscode-panel-border); }
