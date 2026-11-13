@@ -165,6 +165,51 @@ suite('PiChatFileLinks', () => {
 		});
 	});
 
+	test('shortens tool paths only for the chat repo or known repositories in the projects directory', async () => {
+		const projects = '/home/test/Documents/VSCode';
+		await files.createFolder(URI.file(`${projects}/lucent/.git`));
+		await files.createFolder(URI.file('/outside/other/.git'));
+		const references = [
+			`${projects}/lucent/supabase/scripts/how-to-use-schema-inspect.md`,
+			`${projects}/unknown/file.ts`,
+			'/outside/other/file.ts',
+			`${projects}/lucent-other/file.ts`,
+			'supabase/scripts/how-to-use-schema-inspect.md',
+		];
+		assert.deepStrictEqual([
+			...await Promise.all(references.map(reference => links.getToolPathLabel(reference, '/repo-a'))),
+			await links.getToolPathLabel(references[0], `${projects}/lucent`),
+		], [
+			'lucent/supabase/scripts/how-to-use-schema-inspect.md',
+			references[1], references[2], references[3], references[4],
+			'supabase/scripts/how-to-use-schema-inspect.md',
+		]);
+	});
+
+	test('shortened read, edit and write labels preserve the full click target and output', async () => {
+		const root = mainWindow.document.createElement('div');
+		const repo = '/home/test/Documents/VSCode/lucent';
+		const path = `${repo}/src/a b.ts`;
+		await files.createFolder(URI.file(`${repo}/.git`));
+		await files.writeFile(URI.file(path), VSBuffer.fromString('test'));
+		for (const toolName of ['read', 'edit', 'write']) {
+			renderPiChatTool(root, { id: toolName, role: 'assistant', kind: 'tool', toolName, input: path, output: path, state: 'completed' });
+		}
+		decoratePiChatFileLinks(root, '/repo-a', links, NullHoverService, store.add(new DisposableStore()));
+		await timeout(0);
+		const anchors = Array.from(root.querySelectorAll<HTMLAnchorElement>('a.pi-chat-file-link'));
+		for (const anchor of anchors) { anchor.click(); }
+		assert.deepStrictEqual({
+			labels: anchors.map(anchor => anchor.textContent),
+			opened: opened.map(input => input.resource.path),
+			outputs: Array.from(root.querySelectorAll('pre'), pre => pre.textContent),
+		}, {
+			labels: Array(3).fill('lucent/src/a b.ts'),
+			opened: Array(3).fill(path),
+			outputs: Array(3).fill(path),
+		});
+	});
+
 	test('does not mutate a disposed render after asynchronous resolution', async () => {
 		const rendered = store.add(renderPiChatFileMarkdown({ render: renderMarkdown }, '`only.ts`', '/repo-a'));
 		rendered.element.classList.add('pi-chat-assistant-text');

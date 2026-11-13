@@ -6,13 +6,15 @@
 import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
 import { matchesScheme, Schemas } from '../../../../base/common/network.js';
 import { posix, win32 } from '../../../../base/common/path.js';
-import { basename, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { basename, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextEditorSelection, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { extractSelection } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../platform/path/common/pathService.js';
+import { getProjectsDirectory } from '../../../../platform/workspaces/common/projectDirectories.js';
+import { listGitRepositories } from '../../workspace/browser/gitRepositories.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { escapeGlobPattern } from '../../../services/search/common/queryBuilder.js';
 import { ISearchService, QueryType } from '../../../services/search/common/search.js';
@@ -20,6 +22,7 @@ import { ISearchService, QueryType } from '../../../services/search/common/searc
 /** Resolves agent file references against the owning chat, never the active workspace/editor. */
 export class PiChatFileLinkService {
 	private readonly cache = new Map<string, { expires: number; result: Promise<ITextResourceEditorInput | undefined> }>();
+	private repositories: ReturnType<typeof listGitRepositories> | undefined;
 
 	constructor(
 		@IFileService private readonly files: IFileService,
@@ -48,6 +51,25 @@ export class PiChatFileLinkService {
 		this.cache.set(key, entry);
 		void result.then(() => { entry.expires = Date.now() + 1000; });
 		return result;
+	}
+
+	/** Shorten file-tool labels only; resolution and opening always use the original reference. */
+	async getToolPathLabel(reference: string, repoPath: string): Promise<string> {
+		if (!posix.isAbsolute(reference) && !win32.isAbsolute(reference)) { return reference; }
+		const resource = URI.file(reference);
+		const repo = URI.file(repoPath);
+		if (isEqualOrParent(resource, repo)) { return relativePath(repo, resource) || reference; }
+		const home = this.paths.userHome({ preferLocal: true });
+		const projects = getProjectsDirectory(home);
+		if (!isEqualOrParent(resource, projects)) { return reference; }
+		// Share discovery across streaming renders, using the same repositories as the picker.
+		this.repositories ??= listGitRepositories(home, this.files).catch(() => {
+			this.repositories = undefined;
+			return [];
+		});
+		const repositories = await this.repositories;
+		return repositories.some(repository => isEqualOrParent(repository.folderUri, projects) && isEqualOrParent(resource, repository.folderUri))
+			? relativePath(projects, resource) || reference : reference;
 	}
 
 	async open(input: ITextResourceEditorInput): Promise<void> {

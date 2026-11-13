@@ -74,21 +74,32 @@ export function decoratePiChatFileLinks(root: HTMLElement, repoPath: string, lin
 	for (const node of nodes) {
 		const text = node.data;
 		// An inline-code span or a file tool target can contain spaces/brackets in the filename.
-		const wholePath = !!node.parentElement?.closest('code, [data-pi-file-path]');
+		const toolPath = !!node.parentElement?.closest('[data-pi-file-path]');
+		const wholePath = toolPath || !!node.parentElement?.closest('code');
 		const candidates = wholePath ? [{ text, index: 0 }] : Array.from(text.matchAll(/[^\s`<>"'(){}\[\],;!?]+/gu), match => ({ text: match[0].replace(/[.:]+$/, ''), index: match.index }));
-		const pending = candidates.filter(candidate => (wholePath || /[\\/]|\.[^./\\\s]+/.test(candidate.text)) && links.isFileReference(candidate.text)).map(async candidate => ({ ...candidate, input: await links.resolve(candidate.text, repoPath) }));
+		const pending = candidates.filter(candidate => (wholePath || /[\\/]|\.[^./\\\s]+/.test(candidate.text)) && links.isFileReference(candidate.text)).map(async candidate => {
+			const [input, label] = await Promise.all([
+				links.resolve(candidate.text, repoPath),
+				toolPath ? links.getToolPathLabel(candidate.text, repoPath) : candidate.text,
+			]);
+			return { ...candidate, input, label };
+		});
 		if (!pending.length) { continue; }
 		void Promise.all(pending).then(matches => {
 			if (disposed || !node.parentNode) { return; }
 			const fragment = document.createDocumentFragment();
 			let offset = 0;
 			for (const match of matches) {
-				if (!match.input) { continue; }
+				if (!match.input && match.label === match.text) { continue; }
 				fragment.append(text.slice(offset, match.index));
-				const anchor = document.createElement('a');
-				anchor.textContent = match.text;
-				connect(anchor, match.input);
-				fragment.append(anchor);
+				if (match.input) {
+					const anchor = document.createElement('a');
+					anchor.textContent = match.label;
+					connect(anchor, match.input);
+					fragment.append(anchor);
+				} else {
+					fragment.append(match.label);
+				}
 				offset = match.index + match.text.length;
 			}
 			if (offset) { fragment.append(text.slice(offset)); node.replaceWith(fragment); }

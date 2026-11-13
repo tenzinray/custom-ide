@@ -74,10 +74,10 @@ function renderAssistantMessage(turn: HTMLElement, message: Exclude<PiChatMessag
 	} else if (message.kind === 'thinking') {
 		const details = append(turn, $('details.pi-chat-activity-row'));
 		const summary = append(details, $('summary'));
-		append(summary, $('.codicon.codicon-lightbulb', { 'aria-hidden': 'true' }));
-		append(summary, $('strong', {}, 'Thinking'));
-		append(summary, $('span.pi-chat-activity-target', {}, message.content));
-		append(details, $('pre.pi-chat-activity-output', {}, message.content));
+		const text = message.content.replace(/\*\*/g, '');
+		append(summary, $('.codicon.codicon-cloud', { 'aria-hidden': 'true' }));
+		append(summary, $('span.pi-chat-activity-target', {}, text));
+		append(details, $('pre.pi-chat-activity-output', {}, text));
 	} else {
 		append(turn, $('.pi-chat-notice' + (message.noticeType === 'warning' ? '.pi-chat-warning' : ''), {}, message.content));
 	}
