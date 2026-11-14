@@ -56,6 +56,7 @@ export class PiChatRepoPickerContainer extends Disposable {
 				this.sessionLimit += PiChatSessionListService.pageSize;
 				void this.refreshSessions();
 			}));
+		this.sessionListService.onDidChangeSummaries(this._store, () => { void this.refreshSessions(); });
 		this._register(workspace.onDidChangeWorkspaceFolders(() => { void this.refresh(); }));
 		void this.refresh();
 	}

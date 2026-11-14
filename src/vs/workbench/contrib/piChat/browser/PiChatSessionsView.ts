@@ -71,6 +71,7 @@ export class PiChatSessionsView extends ViewPane {
 		this.inputCache = piInstantiationService.createInstance(PiChatInputCacheService);
 		this.rename = this._register(piInstantiationService.createInstance(PiChatSessionRenameService));
 		this.sessionListService.onDidChangePins(this._store, () => { void this.refresh(); });
+		this.sessionListService.onDidChangeSummaries(this._store, () => { void this.refresh(); });
 		this._register(this.onDidChangeBodyVisibility(visible => { if (visible) { void this.refresh(); } }));
 		this._register(Event.any(selection.onDidSelectSession, selection.onDidUpdateSession)(session => {
 			if (!session) { this.renderSessions(); return; }

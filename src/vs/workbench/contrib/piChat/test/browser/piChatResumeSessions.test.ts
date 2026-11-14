@@ -38,7 +38,7 @@ suite('Pi chat resume sessions', () => {
 
 	function setupPicker(listSessions: PiChatSessionListService['listSessions']) {
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stubInstance(PiChatSessionListService, { listSessions });
+		instantiation.stubInstance(PiChatSessionListService, { listSessions, onDidChangeSummaries: () => {} });
 		const selected: PiChatSessionSummary[] = [];
 		instantiation.set(IPiChatSelectionService, upcastPartial<IPiChatSelectionService>({ selectSession: session => { if (session) { selected.push(session); } } }));
 		const views: string[] = [];
