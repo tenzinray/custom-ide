@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import type { PiChatPlaybackStatus } from '../../../src/vs/workbench/contrib/piChat/common/pi-chat-playback-types.js';
 import { changePiChatOpenAIAccount, getPiChatOpenAIAccounts } from './PiChatOpenAIAccountService.js';
 import { fetchPiChatOpenAILimits } from './PiChatOpenAILimitsService.js';
+import { registerPiChatSpeakCommands } from './PiChatSpeakService.js';
 import { getPiChatContextUsage } from './PiChatContextUsageService.js';
 import { cancelPiChatPrompt, createPiChatSession, disposePiChatRuns, pollPiChatTurn, queuePiChatPrompt, renamePiChatSession, restorePiChatDraft, sendPiChatPromptNow, startPiChatTurn, stopPiChatTurn } from './PiChatRunService.js';
 
@@ -117,6 +118,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		})();
 		return playbackStatus();
 	}));
+	registerPiChatSpeakCommands(context, script, playbackStatus);
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.playbackStatus', playbackStatus));
 	context.subscriptions.push(vscode.commands.registerCommand('piChat.pause', (playbackId: string) => {
 		if (playbackId === status.playbackId && status.phase === 'playing' && playing) {

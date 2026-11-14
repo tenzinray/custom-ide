@@ -35,6 +35,8 @@ import { IPiChatOpenAILimitsService } from './PiChatOpenAILimitsService.js';
 import { IPiChatSelectionService, PiChatSessionOpenOptions } from './PiChatSelectionService.js';
 import { renderPiChatMessages } from './body/PiChatConversationBody.js';
 import { renderPiChatNewChat } from './body/PiChatNewChatBody.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { PiChatSpeakPlayback } from './body/PiChatSpeakPlayback.js';
 import { PiChatListenPlayback } from './body/PiChatListenPlayback.js';
 import { PiChatBodyScroll } from './body/PiChatBodyScroll.js';
 import { PiChatMessageCopy } from './body/PiChatMessageCopy.js';
@@ -63,6 +65,7 @@ export class PiChatConversationPane extends Disposable {
 	private readonly inputCache: PiChatInputCacheService;
 	private readonly limitClock = this._register(new IntervalTimer());
 	private readonly copy: PiChatMessageCopy;
+	private readonly speakPlayback: PiChatSpeakPlayback;
 	private queued: PiChatQueuedPrompt[] = [];
 	private readonly footerControls = this._register(new MutableDisposable<PiChatFooterControls>());
 	private sending = false;
@@ -77,7 +80,7 @@ export class PiChatConversationPane extends Disposable {
 	private showOpenAILimits = true;
 	private sessionOpenOptions: PiChatSessionOpenOptions = {};
 
-	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService, @IHoverService private readonly hover: IHoverService) {
+	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService, @IHoverService private readonly hover: IHoverService, @INotificationService notifications: INotificationService) {
 		super();
 		this.loader = instantiationService.createInstance(PiChatSessionLoadService);
 		this.fileLinks = instantiationService.createInstance(PiChatFileLinkService);
@@ -85,6 +88,7 @@ export class PiChatConversationPane extends Disposable {
 		this.selection = instantiationService.invokeFunction(accessor => accessor.get(IPiChatSelectionService));
 		this.inputCache = instantiationService.createInstance(PiChatInputCacheService);
 		this.copy = new PiChatMessageCopy(text => clipboardService.writeText(text));
+		this.speakPlayback = this._register(new PiChatSpeakPlayback(this.commands, notifications));
 		this._register(Event.any(this.selection.onDidSelectSession, this.selection.onDidUpdateSession)(session => {
 			if (session && session.id === this.summary?.id) {
 				if (session.sessionName !== this.summary.sessionName) { this.summary = { ...this.summary, sessionName: session.sessionName }; }
@@ -293,6 +297,7 @@ export class PiChatConversationPane extends Disposable {
 				if (this.playback.value?.button === button) { this.playback.value.onClick(); }
 				else { this.playback.value = new PiChatListenPlayback(button, response, this.commands, text); }
 			}, this.markdown, this.copy, this.queued, id => { void this.cancelQueued(id); }, id => { void this.sendQueuedNow(id); }, this.summary.repoPath, (element, disposables) => {
+				this.speakPlayback.connect(element, disposables);
 				decoratePiChatPermissionLinks(element, text => this.footerControls.value?.restore(text), disposables);
 				decoratePiChatFileLinks(element, this.summary!.repoPath, this.fileLinks, this.hover, disposables);
 			});
