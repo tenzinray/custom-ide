@@ -12,7 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -66,7 +67,7 @@ suite('PiChatSessionList', () => {
 		assert.deepStrictEqual(actions, ['recent:My renamed chat', 'recent:My renamed chat']);
 	});
 
-	function setupSessions() {
+	function setupSessions(log = new NullLogService()) {
 		const instantiation = store.add(new TestInstantiationService());
 		const provider = store.add(new class extends InMemoryFileSystemProvider {
 			bytesRead = 0;
@@ -91,6 +92,8 @@ suite('PiChatSessionList', () => {
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IPathService, new TestPathService(URI.file('/home/test')));
 		instantiation.stub(IStorageService, storage);
+		instantiation.stub(IEnvironmentService, { isBuilt: false });
+		instantiation.stub(ILogService, log);
 		return { instantiation, files, provider, storage, service: instantiation.createInstance(PiChatSessionListService) };
 	}
 
@@ -176,7 +179,9 @@ suite('PiChatSessionList', () => {
 	});
 
 	test('background indexing recovers middle-of-file names, and large append indexing starts at the cached boundary', async () => {
-		const { files, service } = setupSessions();
+		const diagnostics: string[] = [];
+		const log = new class extends NullLogService { override info(...args: Parameters<NullLogService['info']>): void { diagnostics.push(String(args[1])); } }();
+		const { files, service } = setupSessions(log);
 		const file = URI.file('/home/test/.pi/agent/sessions/repo/2026_chat.jsonl');
 		let text = [
 			{ type: 'session', id: 'chat', cwd: '/repo', timestamp: '2026-01-01' },
@@ -198,8 +203,8 @@ suite('PiChatSessionList', () => {
 		text += JSON.stringify({ type: 'session_info', name: 'After append' }) + '\n' + JSON.stringify({ type: 'message', message: { role: 'assistant', content: 'x'.repeat(100_000) }, timestamp: '2026-01-04' }) + '\n';
 		const appended = await writeAndIndex();
 		const scans = files.requests.filter(read => read.length > 65_536);
-		assert.deepStrictEqual({ first: first.indexed?.sessionName, initiallyUnnamed: first.provisional?.sessionName, appended: appended.indexed?.sessionName, timestamp: appended.indexed?.lastMessageAt, scanOffsets: scans.map(read => read.position) }, {
-			first: 'Middle 🐱', initiallyUnnamed: undefined, appended: 'After append', timestamp: '2026-01-04', scanOffsets: [0, boundary],
+		assert.deepStrictEqual({ first: first.indexed?.sessionName, initiallyUnnamed: first.provisional?.sessionName, appended: appended.indexed?.sessionName, timestamp: appended.indexed?.lastMessageAt, scanOffsets: scans.map(read => read.position), logsProvisional: diagnostics.some(line => line.includes('"source":"metadata.probe.publish"') && line.includes('"name":null')), logsRecovered: diagnostics.some(line => line.includes('"source":"metadata.background.publish"') && line.includes('"name":"Middle 🐱"')), leaksTranscript: diagnostics.some(line => line.includes('x'.repeat(1000))) }, {
+			first: 'Middle 🐱', initiallyUnnamed: undefined, appended: 'After append', timestamp: '2026-01-04', scanOffsets: [0, boundary], logsProvisional: true, logsRecovered: true, leaksTranscript: false,
 		});
 	});
 

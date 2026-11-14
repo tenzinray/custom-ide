@@ -6,10 +6,13 @@
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { isUUID } from '../../../../base/common/uuid.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { PiChatSessionSummary } from '../common/pi-chat-types.js';
+import { PiChatSessionNameDiagnostics } from './PiChatSessionNameDiagnostics.js';
 import { PiChatSessionMetadataService } from './PiChatSessionMetadataService.js';
 
 const pinnedSessionsKey = 'piChat.pinnedSessions';
@@ -22,13 +25,17 @@ export class PiChatSessionListService {
 	private indexedFiles: Promise<IFileStatWithMetadata[]> | undefined;
 	private indexedAt = 0;
 	private readonly metadata: PiChatSessionMetadataService;
+	readonly nameDiagnostics: PiChatSessionNameDiagnostics;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storage: IStorageService,
+		@IEnvironmentService environment: IEnvironmentService,
+		@ILogService log: ILogService,
 	) {
-		this.metadata = PiChatSessionMetadataService.getInstance(fileService, storage);
+		this.nameDiagnostics = new PiChatSessionNameDiagnostics(environment?.isBuilt === false, log);
+		this.metadata = PiChatSessionMetadataService.getInstance(fileService, storage, this.nameDiagnostics);
 	}
 
 	getPinnedIds(): ReadonlySet<string> {
@@ -52,6 +59,7 @@ export class PiChatSessionListService {
 	}
 
 	invalidate(): void {
+		this.nameDiagnostics.record('fileIndex.invalidated');
 		this.indexedFiles = undefined;
 	}
 

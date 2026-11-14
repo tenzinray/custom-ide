@@ -69,11 +69,16 @@ export class PiChatRepoPickerContainer extends Disposable {
 
 	private async refreshSessions(): Promise<void> {
 		const requestId = ++this.sessionRequestId;
+		this.sessionListService.nameDiagnostics.record('resume.refresh.start', undefined, { requestId });
 		this.loadingSessions = true;
 		this.body.setSessionsLoading(true);
 		try {
 			const { sessions, hasMore } = await this.sessionListService.listSessions(this.sessionLimit);
-			if (this._store.isDisposed || requestId !== this.sessionRequestId) { return; }
+			if (this._store.isDisposed || requestId !== this.sessionRequestId) {
+				this.sessionListService.nameDiagnostics.record('resume.refresh.discarded', undefined, { requestId, currentRequestId: this.sessionRequestId });
+				return;
+			}
+			for (const session of sessions) { this.sessionListService.nameDiagnostics.observe('resume.render', session, requestId); }
 			this.body.setSessions(sessions, hasMore);
 		} catch (error) {
 			if (!this._store.isDisposed && requestId === this.sessionRequestId) {

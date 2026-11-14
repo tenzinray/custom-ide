@@ -75,6 +75,7 @@ export class PiChatSessionsView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => { if (visible) { void this.refresh(); } }));
 		this._register(Event.any(selection.onDidSelectSession, selection.onDidUpdateSession)(session => {
 			if (!session) { this.renderSessions(); return; }
+			this.sessionListService.nameDiagnostics.observe('sidebar.selection', session);
 			const changedTimestamp = [...this.sessions, ...this.pinnedSessions].some(saved => saved.id === session.id && saved.lastMessageAt !== session.lastMessageAt);
 			this.sessions = this.sessions.map(saved => saved.id === session.id ? session : saved);
 			this.pinnedSessions = this.pinnedSessions.map(saved => saved.id === session.id ? session : saved);
@@ -129,13 +130,17 @@ export class PiChatSessionsView extends ViewPane {
 	private async refresh(): Promise<void> {
 		if (!this.list) { return; }
 		const requestId = ++this.refreshId;
+		this.sessionListService.nameDiagnostics.record('sidebar.refresh.start', undefined, { requestId });
 		if (!this.sessions.length && !this.pinnedSessions.length && !this.draft) { this.list.textContent = localize('piChat.loading', "Loading conversations..."); }
 		try {
 			const [{ sessions, hasMore }, pinned] = await Promise.all([
 				this.sessionListService.listSessions(this.limit),
 				Promise.all([...this.sessionListService.getPinnedIds()].map(id => id === this.draft?.id ? this.draft : this.sessionListService.findSession(id))),
 			]);
-			if (requestId !== this.refreshId || this._store.isDisposed) { return; }
+			if (requestId !== this.refreshId || this._store.isDisposed) {
+				this.sessionListService.nameDiagnostics.record('sidebar.refresh.discarded', undefined, { requestId, currentRequestId: this.refreshId });
+				return;
+			}
 			this.sessions = sessions;
 			this.pinnedSessions = pinned.filter(session => session !== undefined);
 			this.hasMore = hasMore;
@@ -152,6 +157,7 @@ export class PiChatSessionsView extends ViewPane {
 		if (this.draft && !openSessions.some(session => session.id === this.draft?.id)) { drafts.push(this.draft); }
 		const draftIds = new Set(drafts.map(session => session.id));
 		const sessions = [...this.pinnedSessions, ...this.sessions].filter(session => !draftIds.has(session.id));
+		for (const session of [...drafts, ...sessions]) { this.sessionListService.nameDiagnostics.observe('sidebar.render', session, this.refreshId); }
 		renderPiChatSessionList(this.list, [...drafts, ...sessions], this.sessionListService.getPinnedIds(), this.hasMore, this.selection.selectedSession?.id, this.piInstantiationService,
 			session => { this.selection.selectSession(session); void this.viewsService.openView(PiChatConversationView.ID, true); },
 			session => { this.selection.selectSession(session, { direction: Direction.Right }); void this.viewsService.openView(PiChatConversationView.ID, true); },

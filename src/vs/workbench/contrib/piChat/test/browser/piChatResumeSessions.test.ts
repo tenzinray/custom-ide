@@ -17,6 +17,8 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { PiChatConversationView } from '../../browser/PiChatConversationView.js';
 import { PiChatInputCacheService } from '../../browser/PiChatInputCacheService.js';
 import { PiChatRepoPickerContainer } from '../../browser/PiChatRepoPickerContainer.js';
+import { PiChatSessionNameDiagnostics } from '../../browser/PiChatSessionNameDiagnostics.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { PiChatSessionListService } from '../../browser/PiChatSessionListService.js';
 import { IPiChatSelectionService } from '../../browser/PiChatSelectionService.js';
 import { PiChatRepoPickerBody } from '../../browser/body/PiChatRepoPickerBody.js';
@@ -38,7 +40,7 @@ suite('Pi chat resume sessions', () => {
 
 	function setupPicker(listSessions: PiChatSessionListService['listSessions']) {
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stubInstance(PiChatSessionListService, { listSessions, onDidChangeSummaries: () => {} });
+		instantiation.stubInstance(PiChatSessionListService, { listSessions, onDidChangeSummaries: () => {}, nameDiagnostics: new PiChatSessionNameDiagnostics(false, new NullLogService()) });
 		const selected: PiChatSessionSummary[] = [];
 		instantiation.set(IPiChatSelectionService, upcastPartial<IPiChatSelectionService>({ selectSession: session => { if (session) { selected.push(session); } } }));
 		const views: string[] = [];
