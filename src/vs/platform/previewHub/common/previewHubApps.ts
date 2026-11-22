@@ -19,7 +19,6 @@ export const previewHubApps = [
 	},
 	{
 		id: 'pide', name: 'Pide Dev', folder: 'custom-ide', command: ['bash', 'scripts/watch-and-launch.sh', '--preview-hub'],
-		launchCommand: ['node', 'scripts/code-oss-launcher/launch.ts', '--repo', '.', '--skip-prelaunch', '--persistent-profile', '--wait'],
 		watchCommand: ['pnpm', 'run', 'watch'],
 		components: [
 			{ id: 'watcher', name: localize('previewHub.watcher', "Watcher"), match: 'pnpm run watch' },

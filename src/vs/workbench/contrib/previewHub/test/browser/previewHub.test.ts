@@ -34,6 +34,21 @@ suite('PreviewHub presentation', () => {
 		assert.strictEqual(buttons[0].disabled, true);
 	});
 
+	test('a failed Pide launch keeps retry and surviving-watcher cleanup available', () => {
+		const host = mainWindow.document.createElement('div');
+		const calls: string[] = [];
+		const app = previewHubApps.find(app => app.id === 'pide')!;
+		const card = store.add(new PreviewHubAppCard(host, app, () => calls.push('start'), () => calls.push('stop'), () => {}, () => {}));
+		card.update({ id: 'pide', phase: 'error', error: 'Build timed out', launcherLog: '/log', components: [{ id: 'watcher', running: true }, { id: 'app', running: false }] }, false);
+		const start = host.querySelector<HTMLButtonElement>('.preview-hub-start')!;
+		const stop = host.querySelector<HTMLButtonElement>('.preview-hub-stop')!;
+		start.click();
+		stop.click();
+		assert.deepStrictEqual({ start: start.textContent, calls, error: host.querySelector('.preview-hub-error')?.textContent }, {
+			start: 'Start Missing', calls: ['start', 'stop'], error: 'Build timed out',
+		});
+	});
+
 	test('pending controls cannot double launch and preview stays disabled until an actual local listener exists', () => {
 		const host = mainWindow.document.createElement('div');
 		const calls: string[] = [];

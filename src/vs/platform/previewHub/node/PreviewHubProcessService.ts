@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn, ChildProcess } from 'child_process';
-import { mkdir, open, realpath } from 'fs/promises';
+import { appendFile, mkdir, open, realpath } from 'fs/promises';
 import { join } from '../../../base/common/path.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment } from '../../../base/common/platform.js';
@@ -41,7 +41,7 @@ export class PreviewHubProcessService extends Disposable {
 			return {
 				id: app.id, components, launcherLog: join(root, previewHubLauncherLogPath),
 				watcherLog: await getPreviewHubProcessLog(matches.get('watcher')?.[0]),
-				phase: this.busy.get(app.id) ?? (this.children.has(app.id) && !components.every(component => component.running) ? 'starting' : active ? 'running' : this.errors.has(app.id) ? 'error' : 'stopped'),
+				phase: this.busy.get(app.id) ?? (this.errors.has(app.id) ? 'error' : this.children.has(app.id) && !components.every(component => component.running) ? 'starting' : active ? 'running' : 'stopped'),
 				error: this.errors.get(app.id), processes,
 				previewUrl: app.id === 'brain-wave' ? processes.find(entry => entry.urls.length)?.urls[0] : undefined,
 			};
@@ -58,10 +58,8 @@ export class PreviewHubProcessService extends Disposable {
 			const matches = await findPreviewHubProcesses(app, root, await readPreviewHubProcesses());
 			if (app.components.every(component => matches.get(component.id)?.length)) { return; }
 			let command: readonly string[] = app.command;
-			if (app.id === 'pide') {
-				if (matches.get('watcher')?.length) { command = app.launchCommand; }
-				else if (matches.get('app')?.length) { command = app.watchCommand; }
-			}
+			if (app.id === 'pide' && matches.get('app')?.length) { command = app.watchCommand; }
+			// A watcher alone is not readiness: the normal launcher also waits for its initial build.
 			const env = await this.launchEnvironment();
 			await mkdir(join(root, 'logs'), { recursive: true });
 			const output = await open(join(root, previewHubLauncherLogPath), 'a');
@@ -71,9 +69,11 @@ export class PreviewHubProcessService extends Disposable {
 				this.children.set(id, child);
 				child.once('exit', (code, signal) => {
 					if (this.children.get(id) === child) { this.children.delete(id); }
-					if (code && !this.busy.has(id)) {
-						this.errors.set(id, localize('previewHub.exit', "Process exited with code {0}. Open the launcher log for details.", code));
+					if ((code !== 0 || signal) && !this.busy.has(id)) {
+						this.errors.set(id, localize('previewHub.exit', "Process exited with code {0} (signal: {1}). Open the launcher log for details.", code ?? 'none', signal ?? 'none'));
 					}
+					void appendFile(join(root, previewHubLauncherLogPath), `[Preview Hub] ${new Date().toISOString()} Process exited: PID ${child.pid}, code ${code}, signal ${signal}\n`)
+						.catch(error => this.log.error('[Preview Hub] Could not log process exit', error));
 					this.log.info('[Preview Hub] Process exited', { id, code, signal });
 				});
 				await new Promise<void>((resolve, reject) => {

@@ -81,12 +81,23 @@ fi
 
 # The first watch pass cleans and rewrites out/. Launching before it finishes opens a blank window.
 echo "Waiting for the initial watch build to finish..."
+previous_pending=''
+wait_started=$SECONDS
 for ((attempt = 0; attempt < 300; attempt++)); do
-	if grep -Fq 'Finished transpilation with 0 errors' "$LOGS/watch.log" \
-		&& grep -E '\[watch-client(-noEmit)?[[:space:]]*\]' "$LOGS/watch.log" | grep -Fq 'with 0 errors' \
-		&& grep -F '[watch-extensions' "$LOGS/watch.log" | grep -Fq 'Finished compilation' \
-		&& grep -Fq '[pi-chat] Runtime bundle built' "$LOGS/watch.log"; then
+	elapsed=$((SECONDS - wait_started))
+	pending=()
+	if ! grep -Fq 'Finished transpilation with 0 errors' "$LOGS/watch.log"; then pending+=('client transpilation'); fi
+	if ! grep -Eq '\[watch-client(-noEmit)?[[:space:]]*\].*with 0 errors' "$LOGS/watch.log"; then pending+=('client typecheck'); fi
+	if ! grep -Eq '\[watch-extensions[^]]*\].*Finished compilation' "$LOGS/watch.log"; then pending+=('extension compilation'); fi
+	# Match the stable bundle prefix; the message may also describe bundled assets (e.g. the image decoder).
+	if ! grep -Fq '[pi-chat] Runtime bundle' "$LOGS/watch.log"; then pending+=('Pi runtime bundle'); fi
+	if (( ${#pending[@]} == 0 )); then
+		echo "Initial watch build ready after ${elapsed}s. Launching the dev app..."
 		break
+	fi
+	if [[ "${pending[*]}" != "$previous_pending" ]] || (( attempt % 15 == 0 )); then
+		echo "[$(date -u +%FT%TZ)] Build pending (${elapsed}s, watcher PID $(<"$PID_FILE")): ${pending[*]}. See $LOGS/watch.log"
+		previous_pending="${pending[*]}"
 	fi
 	if ! kill -0 "$(<"$PID_FILE")" 2>/dev/null; then
 		echo "Watcher exited before the build finished. See $LOGS/watch.log" >&2
@@ -94,7 +105,7 @@ for ((attempt = 0; attempt < 300; attempt++)); do
 		exit 1
 	fi
 	if (( attempt == 299 )); then
-		echo "Timed out waiting for the watch build. See $LOGS/watch.log" >&2
+		echo "Timed out waiting for the watch build: ${pending[*]}. See $LOGS/watch.log" >&2
 		tail -n 60 "$LOGS/watch.log" >&2
 		exit 1
 	fi

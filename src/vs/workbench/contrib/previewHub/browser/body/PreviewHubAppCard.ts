@@ -77,9 +77,10 @@ export class PreviewHubAppCard extends Disposable {
 			this.components.get(component.id)?.update(component.running ? 'running' : 'stopped');
 		}
 		const allRunning = state.components.every(component => component.running);
+		const anyRunning = state.components.some(component => component.running);
 		this.start.disabled = pending || allRunning || state.phase === 'starting' || state.phase === 'stopping';
-		this.start.textContent = state.components.some(component => component.running) && !allRunning ? localize('previewHub.startMissing', "Start Missing") : localize('previewHub.start', "Start");
-		this.stop.disabled = pending || state.phase === 'stopped' || state.phase === 'error' || state.phase === 'stopping';
+		this.start.textContent = anyRunning && !allRunning ? localize('previewHub.startMissing', "Start Missing") : localize('previewHub.start', "Start");
+		this.stop.disabled = pending || state.phase === 'stopping' || (!anyRunning && (state.phase === 'stopped' || state.phase === 'error'));
 		if (this.preview) {
 			this.preview.disabled = this.app.id === 'pide' ? pending || state.phase === 'starting' || state.phase === 'stopping' : !state.previewUrl;
 		}

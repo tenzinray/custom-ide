@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'fs/promises';
 import { watch } from 'fs';
+import { spawn } from 'child_process';
+import { once } from 'events';
 import { tmpdir } from 'os';
 import { dirname, join } from '../../../../base/common/path.js';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
@@ -41,6 +43,43 @@ suite('PreviewHubProcesses', () => {
 
 	test('refuses to terminate the Pide instance hosting Preview Hub', async () => {
 		await assert.rejects(() => stopPreviewHubProcesses([{ pid: process.pid, ppid: 1, cmd: 'self' }], []), /Cannot stop the Pide instance/);
+	});
+
+	test('Pide reuses the build-waiting launcher and reports failure even while its watcher survives', async function () {
+		if (process.platform !== 'darwin') { this.skip(); }
+		this.timeout(20_000);
+		const directory = await mkdtemp(join(tmpdir(), 'preview-hub-pide-'));
+		const root = join(directory, 'custom-ide');
+		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
+		await mkdir(join(root, 'scripts'), { recursive: true });
+		await mkdir(join(root, 'logs'));
+		await writeFile(join(root, 'scripts/watch-and-launch.sh'), 'exit 7\n');
+		await writeFile(join(root, 'pnpm'), 'setInterval(() => {}, 1000);');
+		const watcher = spawn(process.execPath, [join(root, 'pnpm'), 'run', 'watch'], { cwd: root, stdio: 'ignore' });
+		const exited = once(watcher, 'exit');
+		await once(watcher, 'spawn');
+		const logged = new DeferredPromise<boolean>();
+		const logPath = join(root, 'logs/preview-hub-launch.log');
+		const logWatcher = watch(join(root, 'logs'), () => {
+			void readFile(logPath, 'utf8').then(value => {
+				if (value.includes('Process exited:')) { void logged.complete(true); }
+			}, () => {});
+		});
+		try {
+			await service.start('pide');
+			assert.strictEqual(await raceTimeout(logged.p, 10_000), true);
+			const state = (await service.snapshot()).find(state => state.id === 'pide')!;
+			assert.deepStrictEqual({ phase: state.phase, components: state.components, error: state.error, launcher: (await readFile(logPath, 'utf8')).includes('Starting bash scripts/watch-and-launch.sh --preview-hub') }, {
+				phase: 'error', components: [{ id: 'watcher', running: true }, { id: 'app', running: false }],
+				error: 'Process exited with code 7 (signal: none). Open the launcher log for details.', launcher: true,
+			});
+		} finally {
+			logWatcher.close();
+			watcher.kill();
+			await exited;
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	for (const app of previewHubApps.filter(app => app.id !== 'pide')) {
