@@ -12,6 +12,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { PiChatFileLinkService } from '../PiChatFileLinkService.js';
+import { renderPiChatImagePreview } from './PiChatImagePreview.js';
 
 /** Use the shared renderer's repo base URI without losing bare filenames needed for unique-match lookup. */
 export function renderPiChatFileMarkdown(markdown: IMarkdownRenderer, content: string, repoPath: string) {
@@ -50,6 +51,14 @@ export function decoratePiChatFileLinks(root: HTMLElement, repoPath: string, lin
 			event.stopPropagation(); // Do not toggle tool disclosures or invoke Markdown's link handler as well.
 			void links.open(input);
 		}));
+		if (!anchor.classList.contains('pi-chat-image-preview')) {
+			// Prose links may still be in a detached fragment until this resolution callback returns.
+			queueMicrotask(() => {
+				if (disposed || !root.contains(anchor)) { return; }
+				const message = anchor.closest<HTMLElement>('.pi-chat-assistant-text');
+				if (message) { renderPiChatImagePreview(message, input, connect, disposables); }
+			});
+		}
 	};
 	// Markdown links already carry the exact target. Missing/ambiguous file links become plain text.
 	// eslint-disable-next-line no-restricted-syntax
