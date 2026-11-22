@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn, ChildProcess } from 'child_process';
-import { appendFile, mkdir, open, realpath } from 'fs/promises';
+import { mkdir, realpath } from 'fs/promises';
 import { join } from '../../../base/common/path.js';
 import { timeout } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -17,6 +17,7 @@ import { previewHubLauncherLogPath } from '../common/previewHub.js';
 import { PreviewHubAppState, PreviewHubPideLaunch } from '../common/preview-hub-types.js';
 import { getPreviewHubPideWindowArgs, openPreviewHubPideWindow } from './PreviewHubPideWindowService.js';
 import { getPreviewHubPideProfile, readPreviewHubPideLaunch } from './PreviewHubPideLaunchService.js';
+import { appendPreviewHubLog, capturePreviewHubProcessLogs, previewHubReadyFilePath, protectPreviewHubLogAttempt, prunePreviewHubLogs } from './previewHubLogs.js';
 import { findPreviewHubProcesses, getPreviewHubProcessDetails, getPreviewHubProcessLog, readPreviewHubProcesses, stopPreviewHubProcesses, PreviewHubProcess } from './previewHubProcesses.js';
 
 /** Exact local app processes and launch output. Existing unrelated processes are never blanket-killed. */
@@ -132,27 +133,29 @@ export class PreviewHubProcessService extends Disposable {
 			const outputPath = attemptId ? join(root, 'logs', `preview-hub-${attemptId}.log`) : join(root, previewHubLauncherLogPath);
 			if (attemptId) {
 				env.PREVIEW_HUB_ATTEMPT_ID = attemptId;
+				env.PREVIEW_HUB_READY_FILE = previewHubReadyFilePath(outputPath);
 				if (command === app.command) {
 					this.pideLaunch = { attemptId, path: outputPath, profile: await this.expectedPideProfile(root), generation: this.pideWindowGeneration };
 				}
 				await this.pideLog(`Attempt ${attemptId}: command=${command.join(' ')}, diagnostic log=${outputPath}`);
 			}
-			const output = await open(outputPath, 'a');
 			try {
-				await output.write(`\n[Preview Hub] ${new Date().toISOString()} Starting ${command.join(' ')}; attempt=${attemptId ?? 'none'}\n`);
-				await output.write(`[Preview Hub] Host PID ${process.pid}, executable ${process.execPath}, Node ${process.version}; matched processes: ${JSON.stringify([...matches].map(([component, entries]) => ({ component, pids: entries.map(entry => entry.pid) })))}\n`);
-				const child = spawn(command[0], command.slice(1), { cwd: root, env, detached: true, stdio: ['ignore', output.fd, output.fd] });
+				await appendPreviewHubLog(outputPath, `\n[Preview Hub] ${new Date().toISOString()} Starting ${command.join(' ')}; attempt=${attemptId ?? 'none'}\n`);
+				await appendPreviewHubLog(outputPath, `[Preview Hub] Host PID ${process.pid}, executable ${process.execPath}, Node ${process.version}; matched processes: ${JSON.stringify([...matches].map(([component, entries]) => ({ component, pids: entries.map(entry => entry.pid) })))}\n`);
+				const child = spawn(command[0], command.slice(1), { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+				void capturePreviewHubProcessLogs(child, outputPath).then(() => prunePreviewHubLogs(join(root, 'logs')))
+					.catch(error => this.log.error('[Preview Hub] Log capture or cleanup failed', error));
 				const children = this.children.get(id) ?? new Set<ChildProcess>();
 				children.add(child);
 				this.children.set(id, children);
 				child.once('exit', (code, signal) => {
 					children.delete(child);
 					if (!children.size) { this.children.delete(id); }
-					if ((code !== 0 || signal) && !this.busy.has(id)) {
+					if ((code !== 0 || signal) && this.busy.get(id) !== 'stopping') {
 						this.errors.set(id, localize('previewHub.exit', "Process exited with code {0} (signal: {1}). Open the launcher log for details.", code ?? 'none', signal ?? 'none'));
 					}
 					const message = `Process exited: PID ${child.pid}, code ${code}, signal ${signal}, attempt=${attemptId ?? 'none'}`;
-					void (id === 'pide' ? this.pideLog(message) : appendFile(outputPath, `[Preview Hub] ${new Date().toISOString()} ${message}\n`))
+					void (id === 'pide' ? this.pideLog(message) : appendPreviewHubLog(outputPath, `[Preview Hub] ${new Date().toISOString()} ${message}\n`))
 						.catch(error => this.log.error('[Preview Hub] Could not log process exit', error));
 					this.log.info('[Preview Hub] Process exited', { id, code, signal });
 				});
@@ -160,11 +163,15 @@ export class PreviewHubProcessService extends Disposable {
 					child.once('spawn', resolve);
 					child.once('error', error => { children.delete(child); if (!children.size) { this.children.delete(id); } reject(error); });
 				});
+				if (attemptId && child.pid) {
+					await protectPreviewHubLogAttempt(join(root, 'logs'), attemptId, child.pid).catch(error => this.log.error('[Preview Hub] Could not protect active log attempt', error));
+				}
+				await prunePreviewHubLogs(join(root, 'logs')).catch(error => this.log.error('[Preview Hub] Log cleanup skipped', error));
 				this.log.info('[Preview Hub] Started', { id, pid: child.pid, command });
 			} catch (error) {
-				await output.write(`[Preview Hub] Start failed: ${error instanceof Error ? error.message : String(error)}\n`);
+				await appendPreviewHubLog(outputPath, `[Preview Hub] Start failed: ${error instanceof Error ? error.message : String(error)}\n`);
 				throw error;
-			} finally { await output.close(); }
+			}
 		} catch (error) {
 			this.errors.set(id, error instanceof Error ? error.message : String(error));
 			if (id === 'pide') {
@@ -198,8 +205,8 @@ export class PreviewHubProcessService extends Disposable {
 		const root = await realpath(join(this.projects, this.app('pide').folder));
 		await mkdir(join(root, 'logs'), { recursive: true });
 		const entry = `[Preview Hub] ${new Date().toISOString()} [${this.pideLaunch?.attemptId ?? 'no-attempt'}] ${message}\n`;
-		await appendFile(join(root, previewHubLauncherLogPath), entry);
-		if (this.pideLaunch) { await appendFile(this.pideLaunch.path, entry); }
+		await appendPreviewHubLog(join(root, previewHubLauncherLogPath), entry);
+		if (this.pideLaunch) { await appendPreviewHubLog(this.pideLaunch.path, entry); }
 		this.log.info('[Preview Hub]', message);
 	}
 
@@ -256,6 +263,9 @@ export class PreviewHubProcessService extends Disposable {
 	}
 
 	async stop(id: PreviewHubAppId): Promise<void> {
+		// Start can still be publishing child ownership/log metadata after the process spawns.
+		// Do not silently drop Stop in that interval.
+		while (this.busy.get(id) === 'starting') { await timeout(25); }
 		if (this.busy.has(id)) { return; }
 		this.busy.set(id, 'stopping');
 		if (id === 'pide') { this.pideWindowGeneration++; }
@@ -270,6 +280,7 @@ export class PreviewHubProcessService extends Disposable {
 			await stopPreviewHubProcesses([...owned, ...[...matches.values()].flat()], table);
 			this.children.delete(id);
 			this.errors.delete(id);
+			await prunePreviewHubLogs(join(root, 'logs')).catch(error => this.log.error('[Preview Hub] Log cleanup skipped', error));
 			this.log.info('[Preview Hub] Stopped', id);
 		} finally { this.busy.delete(id); }
 	}

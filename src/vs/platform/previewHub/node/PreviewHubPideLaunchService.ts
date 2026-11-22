@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import { IProcessEnvironment } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
 import { PreviewHubPideLaunch } from '../common/preview-hub-types.js';
+import { previewHubReadyFilePath } from './previewHubLogs.js';
 
 const exec = promisify(execFile);
 
@@ -24,7 +25,10 @@ export async function getPreviewHubPideProfile(root: string, env: IProcessEnviro
 
 /** Only this attempt's profile, PID and rendered-workbench acknowledgement can complete startup. */
 export async function readPreviewHubPideLaunch(path: string, attemptId: string, userDataDir: string): Promise<PreviewHubPideLaunch | undefined> {
-	const content = await readFile(path, 'utf8');
+	const content = await readFile(previewHubReadyFilePath(path), 'utf8').catch(error => {
+		if (error.code === 'ENOENT') { return readFile(path, 'utf8'); }
+		throw error;
+	});
 	for (const line of content.split('\n')) {
 		if (!line.startsWith('{')) { continue; }
 		let record: Partial<PreviewHubPideLaunch>;

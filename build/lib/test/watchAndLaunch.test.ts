@@ -11,16 +11,20 @@ import { join } from 'node:path';
 import { suite, test } from 'node:test';
 
 suite('watch-and-launch', { skip: process.platform === 'win32' }, () => {
-	for (const missingStep of [undefined, 'Pi runtime bundle', 'client typecheck', 'client typecheck failure']) {
-		test(missingStep === 'Pi runtime bundle' ? 'refuses to launch without runtime output' : `launches and reuses its watcher with ${missingStep ?? 'all checks ready'}`, async () => {
+	for (const missingStep of [undefined, 'Pi runtime bundle', 'client typecheck', 'client typecheck failure', 'prelaunch failure']) {
+		test(missingStep === 'Pi runtime bundle' ? 'refuses to launch without runtime output' : missingStep === 'prelaunch failure' ? 'surfaces prelaunch errors after draining the log pipe' : `launches and reuses its watcher with ${missingStep ?? 'all checks ready'}`, async () => {
 			const root = await mkdtemp(join(tmpdir(), 'watch-and-launch-'));
 			const groups: number[] = [];
 			try {
 				await Promise.all(['scripts', 'node_modules', 'bin'].map(folder => mkdir(join(root, folder))));
 				await copyFile(new URL('../../../scripts/watch-and-launch.sh', import.meta.url), join(root, 'scripts/watch-and-launch.sh'));
 				await copyFile(new URL('../../../.nvmrc', import.meta.url), join(root, '.nvmrc'));
+				await mkdir(join(root, 'scripts/code-oss-launcher'), { recursive: true });
+				await mkdir(join(root, 'src/vs/platform/previewHub/node'), { recursive: true });
+				await copyFile(new URL('../../../scripts/code-oss-launcher/logPreviewHub.ts', import.meta.url), join(root, 'scripts/code-oss-launcher/logPreviewHub.ts'));
+				await copyFile(new URL('../../../src/vs/platform/previewHub/node/previewHubLogs.ts', import.meta.url), join(root, 'src/vs/platform/previewHub/node/previewHubLogs.ts'));
 				const commands = {
-					node: '#!/bin/bash\nif [[ "$1" == "--version" ]]; then echo v24.22.1; elif [[ "$1" == *launch.ts ]]; then printf "%s\\n" "$@" > launched; fi\n',
+					node: `#!/bin/bash\nif [[ "$1" == "--version" ]]; then echo v24.22.1; elif [[ "$1" == *launch.ts ]]; then printf "%s\\n" "$@" > launched; elif [[ "$1" == "build/lib/preLaunch.ts" ]]; then ${missingStep === 'prelaunch failure' ? 'echo mock-prelaunch-failed; exit 9' : 'exit 0'}; else exec ${JSON.stringify(process.execPath)} "$@"; fi\n`,
 					pnpm: `#!/bin/bash
 if [[ "$1" == "--version" ]]; then echo 12.16.0; exit 0; fi
 printf '%s\\n' '[watch-client-transpile] Finished transpilation with 0 errors after 200 ms' '[watch-client          ] Finished compilation api-proposal-names with 0 errors' '[watch-extensions      ] Finished compilation'
@@ -42,11 +46,15 @@ while true; do /bin/sleep 1; done
 						encoding: 'utf8', timeout: 15_000, detached: true,
 					});
 					groups.push(result.pid);
-					assert.ifError(result.error);
+					assert.ifError(result.error ? new Error(`${result.error.message}\n${result.stdout}${result.stderr}`) : undefined);
 					return result;
 				};
 				const first = run();
-				if (missingStep !== 'Pi runtime bundle') {
+				if (missingStep === 'prelaunch failure') {
+					assert.strictEqual(first.status, 1, first.stdout + first.stderr);
+					assert.match(first.stderr, /mock-prelaunch-failed/);
+					await assert.rejects(readFile(join(root, 'launched')), { code: 'ENOENT' });
+				} else if (missingStep !== 'Pi runtime bundle') {
 					assert.strictEqual(first.status, 0, first.stdout + first.stderr);
 					assert.match(first.stdout, /Initial watch build ready.*Launching the dev app/);
 					assert.match(first.stdout, /client typechecking continues in the background/);

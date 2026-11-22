@@ -20,6 +20,7 @@ import { updateLaunchSettings } from './lib/settings.ts';
 import { preparePersistentProfile } from './lib/persistentProfile.ts';
 import { waitForCdp } from './waitForCdp.ts';
 import { waitForWorkbench, type WorkbenchWaitResult } from './waitForWorkbench.ts';
+import { capturePreviewHubProcessLogs } from '../../src/vs/platform/previewHub/node/previewHubLogs.ts';
 
 const CDP_TIMEOUT_MS = 90_000;
 
@@ -251,7 +252,7 @@ async function main(): Promise<number> {
 		if (!options.persistentProfile) { await collectGarbage(path.dirname(runDir)); }
 
 		const finishedAt = performance.now();
-		writeStdout(JSON.stringify({
+		const readiness = JSON.stringify({
 			attemptId: process.env.PREVIEW_HUB_ATTEMPT_ID,
 			workbench,
 			pid,
@@ -273,7 +274,11 @@ async function main(): Promise<number> {
 				cdpReadyMs: Math.round(finishedAt - preLaunchReadyAt),
 				totalMs: Math.round(finishedAt - startedAt),
 			},
-		}) + '\n');
+		}) + '\n';
+		if (process.env.PREVIEW_HUB_READY_FILE) {
+			await fs.writeFile(process.env.PREVIEW_HUB_READY_FILE, readiness, { mode: 0o600 });
+		}
+		writeStdout(readiness);
 		if (options.wait) {
 			const result = await code.exited;
 			if (receivedSignal) {
@@ -463,7 +468,8 @@ function runPreLaunch(repo: string, logFile: string): Promise<boolean> {
 async function startCode(repo: string, codeScript: string, launchArgs: readonly string[], logFile: string, wait: boolean) {
 	const env: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	// Host-only configuration, commonly inherited from VS Code's integrated terminal and agent runtimes
-	for (const name of ['ELECTRON_RUN_AS_NODE', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'CODE_OSS_DEV_REFS_VOLUMES', 'UV_THREADPOOL_SIZE']) {
+	// Preview tracing belongs to this launcher, not independent commands later run in the dev app.
+	for (const name of ['ELECTRON_RUN_AS_NODE', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'CODE_OSS_DEV_REFS_VOLUMES', 'UV_THREADPOOL_SIZE', 'PREVIEW_HUB_ATTEMPT_ID', 'PREVIEW_HUB_READY_FILE', 'PREVIEW_HUB_LOG_COMMAND']) {
 		delete env[name];
 	}
 
@@ -480,9 +486,11 @@ async function startCode(repo: string, codeScript: string, launchArgs: readonly 
 	}
 	log(`launching: ${command} ${args.join(' ')}`);
 
-	const logFd = openSync(logFile, 'a');
+	const bounded = !!process.env.PREVIEW_HUB_ATTEMPT_ID && wait;
+	const logFd = bounded ? undefined : openSync(logFile, 'a');
 	try {
-		const child = spawn(command, args, { cwd: repo, env, detached: process.platform !== 'win32' || !wait, stdio: ['ignore', logFd, logFd] });
+		const child = spawn(command, args, { cwd: repo, env, detached: process.platform !== 'win32' || !wait, stdio: bounded ? ['ignore', 'pipe', 'pipe'] : ['ignore', logFd!, logFd!] });
+		if (bounded) { void capturePreviewHubProcessLogs(child, logFile).catch(error => log(`Application log capture failed: ${String(error)}`)); }
 		const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
 			child.once('exit', (code, signal) => resolve({ code, signal }));
 		});
@@ -495,7 +503,7 @@ async function startCode(repo: string, codeScript: string, launchArgs: readonly 
 		}
 		return { pid: child.pid!, exited };
 	} finally {
-		closeSync(logFd);
+		if (logFd !== undefined) { closeSync(logFd); }
 	}
 }
 

@@ -10,6 +10,7 @@ import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PreviewHubPideLaunch } from '../../common/preview-hub-types.js';
 import { getPreviewHubPideProfile, readPreviewHubPideLaunch } from '../../node/PreviewHubPideLaunchService.js';
+import { appendPreviewHubLog, previewHubLogMaxBytes, previewHubReadyFilePath } from '../../node/previewHubLogs.js';
 
 suite('PreviewHubPideLaunch', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,6 +33,9 @@ suite('PreviewHubPideLaunch', () => {
 			const after = await readPreviewHubPideLaunch(path, ready.attemptId, ready.userDataDir);
 			assert.deepStrictEqual({ before, after }, { before: undefined, after: ready });
 			await assert.rejects(() => readPreviewHubPideLaunch(path, ready.attemptId, '/different/profile'), /different profile/);
+			await writeFile(previewHubReadyFilePath(path), JSON.stringify(ready));
+			await appendPreviewHubLog(path, Buffer.alloc(previewHubLogMaxBytes * 3, 'x'));
+			assert.deepStrictEqual(await readPreviewHubPideLaunch(path, ready.attemptId, ready.userDataDir), ready, 'Text rotation must not remove startup readiness');
 		} finally { await rm(directory, { recursive: true, force: true }); }
 	});
 });

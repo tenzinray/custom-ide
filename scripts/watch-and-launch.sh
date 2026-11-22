@@ -9,7 +9,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 LOGS="$ROOT/logs"
 mkdir -p "$LOGS"
 PID_FILE="$LOGS/watch.pid"
-ATTEMPT_ID="${PREVIEW_HUB_ATTEMPT_ID:-manual-$$}"
+ATTEMPT_ID="${PREVIEW_HUB_ATTEMPT_ID:-manual-$(date +%s)-$$}"
 if [[ "$ATTEMPT_ID" == *[!a-zA-Z0-9-]* ]]; then echo 'Invalid launch attempt ID' >&2; exit 1; fi
 echo "[$(date -u +%FT%TZ)] Attempt $ATTEMPT_ID, launcher PID $$ (parent $PPID), repo $ROOT"
 echo "Runtime: node $(command -v node) ($(node --version)); pnpm $(command -v pnpm) ($(pnpm --version)); required Node $(<"$ROOT/.nvmrc")"
@@ -67,7 +67,7 @@ fi
 prelaunch_log="$LOGS/preview-hub-$ATTEMPT_ID-prelaunch.log"
 ln -sfn "$(basename "$prelaunch_log")" "$LOGS/prelaunch.log"
 echo "[$(date -u +%FT%TZ)] Prelaunch started (attempt $ATTEMPT_ID, log: $prelaunch_log)..."
-if ! (cd "$ROOT" && node build/lib/preLaunch.ts) > "$prelaunch_log" 2>&1; then
+if ! (cd "$ROOT" && node build/lib/preLaunch.ts) 2>&1 | node "$ROOT/scripts/code-oss-launcher/logPreviewHub.ts" "$prelaunch_log" "$ATTEMPT_ID"; then
 	echo "[$(date -u +%FT%TZ)] Prelaunch FAILED (attempt $ATTEMPT_ID)" >&2
 	tail -n 60 "$prelaunch_log" >&2
 	exit 1
@@ -80,9 +80,23 @@ else
 	watch_log="$LOGS/preview-hub-$ATTEMPT_ID-watch.log"
 	ln -sfn "$(basename "$watch_log")" "$LOGS/watch.log"
 	echo "[$(date -u +%FT%TZ)] Starting watcher (attempt $ATTEMPT_ID, log: $watch_log)..."
-	(cd "$ROOT" && exec pnpm run watch) > "$watch_log" 2>&1 &
-	watch_pid=$!
-	echo "$watch_pid" > "$PID_FILE"
+	: > "$watch_log"
+	rm -f "$PID_FILE"
+	# The bounded logger owns the stream, but publishes pnpm's actual PID for discovery and Stop.
+	# No stdout descriptor is inherited from the outer launcher after it exits.
+	(cd "$ROOT" && PREVIEW_HUB_LOG_COMMAND='["pnpm","run","watch"]' exec node "$ROOT/scripts/code-oss-launcher/logPreviewHub.ts" --run "$watch_log" "$ATTEMPT_ID" "$PID_FILE") > /dev/null 2>> "$watch_log" &
+	logger_pid=$!
+	for ((ready = 0; ready < 100; ready++)); do
+		if [[ -s "$PID_FILE" ]]; then break; fi
+		if ! kill -0 "$logger_pid" 2>/dev/null; then break; fi
+		sleep 0.1
+	done
+	if [[ ! -s "$PID_FILE" ]]; then
+		echo "Watcher log process did not report a child PID. See $watch_log" >&2
+		tail -n 60 "$watch_log" >&2
+		exit 1
+	fi
+	watch_pid=$(<"$PID_FILE")
 	if ! kill -0 "$watch_pid" 2>/dev/null; then
 		tail -n 60 "$LOGS/watch.log" >&2
 		exit 1
