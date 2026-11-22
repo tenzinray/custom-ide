@@ -68,7 +68,7 @@ Export `CODESIGN_IDENTITY` before running this block, using the example in [Sign
 
 Save your work and use **Cmd+Q**; closing the window is not enough. If the coding agent is running inside Pide, quitting disconnects that chat. Run the replacement from an external Terminal or another editor, not Pide's integrated terminal. Do not use the app's normal Restart action to coordinate a replacement.
 
-This block refuses a running Pide, stages and verifies the new bundle before moving the old one, retains a rollback copy, and restores the old app if the final move fails:
+This block refuses a running Pide, stages and verifies the new bundle before moving the old one, retains a rollback copy, and restores the old app if the final move fails. After a successful replacement, it automatically keeps only the two newest completed app backups; failed replacements never trigger pruning:
 
 ```sh
 (
@@ -81,8 +81,9 @@ This block refuses a running Pide, stages and verifies the new bundle before mov
   stage=$(mktemp -d /Applications/.pide-update.XXXXXX)
   ditto ../VSCode-darwin-arm64/Pide.app "$stage/Pide.app"
   codesign --verify --deep --strict "$stage/Pide.app"
-  mkdir -p "$HOME/Library/Application Support/Pide App Backups"
-  backup=$(mktemp -d "$HOME/Library/Application Support/Pide App Backups/update-XXXXXX")
+  backups="$HOME/Library/Application Support/Pide App Backups"
+  mkdir -p "$backups"
+  backup=$(mktemp -d "$backups/update-XXXXXX")
   mv /Applications/Pide.app "$backup/Pide.app"
   if ! mv "$stage/Pide.app" /Applications/Pide.app; then
     mv "$backup/Pide.app" /Applications/Pide.app
@@ -90,9 +91,14 @@ This block refuses a running Pide, stages and verifies the new bundle before mov
   fi
   rmdir "$stage"
   printf 'Previous app saved at: %s/Pide.app\n' "$backup"
+  if ! node build/darwin/pideAppBackups.ts "$backups"; then
+    echo 'App updated, but backup cleanup failed. See the error above; older backups were not fully pruned.' >&2
+  fi
   open /Applications/Pide.app
 )
 ```
+
+Backup retention is owned by `build/darwin/pideAppBackups.ts`: it orders completed `update-XXXXXX/Pide.app` backups by the backup directory's modification time, keeps the newest two, and removes older ones. It ignores unrelated files, incomplete backup folders, and symlinks. No background watcher or scheduled cleanup is needed; pruning runs as part of each successful installation.
 
 Do not reopen Pide from the Dock while this block runs. If staging fails, the installed app remains unchanged; the hidden staging folder can be removed once you have confirmed its path. If macOS refuses writes to `/Applications`, resolve that permission issue before proceeding rather than changing signing or app-data permissions.
 
