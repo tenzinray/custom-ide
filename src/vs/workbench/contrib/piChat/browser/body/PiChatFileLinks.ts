@@ -55,8 +55,7 @@ export function decoratePiChatFileLinks(root: HTMLElement, repoPath: string, lin
 			// Prose links may still be in a detached fragment until this resolution callback returns.
 			queueMicrotask(() => {
 				if (disposed || !root.contains(anchor)) { return; }
-				const message = anchor.closest<HTMLElement>('.pi-chat-assistant-text');
-				if (message) { renderPiChatImagePreview(message, input, connect, disposables); }
+				if (anchor.closest('.pi-chat-assistant-text')) { renderPiChatImagePreview(anchor, input, connect, disposables); }
 			});
 		}
 	};

@@ -134,7 +134,7 @@ suite('PiChatFileLinks', () => {
 		});
 	});
 
-	test('keeps image path links and adds one compact clickable preview per resolved image', async () => {
+	test('keeps image path links and places a clickable preview directly after each reference', async () => {
 		const resource = URI.file('/repo-a/screenshots/a b.png');
 		await files.writeFile(resource, VSBuffer.fromString('image fixture'));
 		resources.push(resource);
@@ -145,10 +145,30 @@ suite('PiChatFileLinks', () => {
 		const preview = rendered.element.querySelector<HTMLAnchorElement>('a.pi-chat-image-preview')!;
 		preview.click();
 		assert.deepStrictEqual({ paths: Array.from(rendered.element.querySelectorAll('a.pi-chat-file-link:not(.pi-chat-image-preview)'), anchor => anchor.textContent), previews: rendered.element.querySelectorAll('.pi-chat-image-preview').length, alt: preview.querySelector('img')?.alt, opened: opened[0]?.resource.path, codePreviews: rendered.element.querySelectorAll('pre img').length }, {
-			paths: ['screenshots/a b.png', 'image'], previews: 1, alt: 'a b.png', opened: resource.path, codePreviews: 0,
+			paths: ['screenshots/a b.png', 'image'], previews: 2, alt: 'a b.png', opened: resource.path, codePreviews: 0,
 		});
+		const code = rendered.element.querySelector('p > code')!;
+		assert.strictEqual(code.nextElementSibling?.className, 'pi-chat-image-preview-slot');
 		preview.querySelector('img')!.dispatchEvent(new mainWindow.Event('error'));
-		assert.deepStrictEqual({ gallery: rendered.element.querySelector('.pi-chat-image-previews'), paths: rendered.element.querySelectorAll('a.pi-chat-file-link').length }, { gallery: null, paths: 2 });
+		assert.deepStrictEqual({ slots: rendered.element.querySelectorAll('.pi-chat-image-preview-slot').length, paths: rendered.element.querySelectorAll('a.pi-chat-file-link:not(.pi-chat-image-preview)').length }, { slots: 1, paths: 2 });
+	});
+
+	test('image previews stay under their own links inside table cells and list items', async () => {
+		for (const name of ['first.png', 'second.png']) {
+			const resource = URI.file(`/repo-a/${name}`);
+			await files.writeFile(resource, VSBuffer.fromString('fixture'));
+			resources.push(resource);
+		}
+		const rendered = store.add(renderPiChatFileMarkdown({ render: renderMarkdown }, '| Exercise | Image |\n|---|---|\n| First | [first](./first.png) |\n| Second | [second](./second.png) |\n\n- [first again](./first.png)', '/repo-a'));
+		rendered.element.classList.add('pi-chat-assistant-text');
+		decoratePiChatFileLinks(rendered.element, '/repo-a', links, NullHoverService, store.add(new DisposableStore()));
+		await timeout(0);
+		assert.deepStrictEqual(Array.from(rendered.element.querySelectorAll('td a:not(.pi-chat-image-preview), li a:not(.pi-chat-image-preview)'), anchor => ({ label: anchor.textContent, next: anchor.nextElementSibling?.className, parent: anchor.nextElementSibling?.parentElement?.tagName, image: anchor.nextElementSibling?.querySelector('img')?.alt })), [
+			{ label: 'first', next: 'pi-chat-image-preview-slot', parent: 'TD', image: 'first.png' },
+			{ label: 'second', next: 'pi-chat-image-preview-slot', parent: 'TD', image: 'second.png' },
+			{ label: 'first again', next: 'pi-chat-image-preview-slot', parent: 'LI', image: 'first.png' },
+		]);
+		assert.strictEqual(rendered.element.querySelector(':scope > .pi-chat-image-preview-slot'), null);
 	});
 
 	test('removes ambiguous explicit links rather than opening a guessed file', async () => {
