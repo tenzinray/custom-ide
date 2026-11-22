@@ -19,7 +19,7 @@ suite('Explorer project drop styling', () => {
 		store.add(toDisposable(() => host.remove()));
 		// Keep the pointer from accidentally activating :hover during computed-style assertions.
 		host.style.cssText = 'position: fixed; left: -10000px; --vscode-sideBarTitle-background: rgb(30, 30, 30);';
-		const styles = append(host, $('style'));
+		const styles = append(host, mainWindow.document.createElement('style'));
 		new DefaultStyleController(styles, 'explorer-project-drop-test').style({ ...unthemedListStyles, listDropOverBackground: 'rgb(10, 80, 120)' });
 		const list = append(host, $('.monaco-list.explorer-project-drop-test.dragging'));
 		const rows = append(list, $('.monaco-list-rows'));
