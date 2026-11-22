@@ -11,8 +11,8 @@ import { join } from 'node:path';
 import { suite, test } from 'node:test';
 
 suite('watch-and-launch', { skip: process.platform === 'win32' }, () => {
-	for (const runtimeReady of [true, false]) {
-		test(runtimeReady ? 'launches after current build output and reuses a ready watcher' : 'reports the missing build step without launching', async () => {
+	for (const missingStep of [undefined, 'Pi runtime bundle', 'client typecheck']) {
+		test(missingStep ? `reports missing ${missingStep} without launching` : 'launches after current build output and reuses a ready watcher', async () => {
 			const root = await mkdtemp(join(tmpdir(), 'watch-and-launch-'));
 			const groups: number[] = [];
 			try {
@@ -21,8 +21,9 @@ suite('watch-and-launch', { skip: process.platform === 'win32' }, () => {
 				const commands = {
 					node: '#!/bin/bash\nif [[ "$1" == *launch.ts ]]; then printf "%s\\n" "$@" > launched; fi\n',
 					pnpm: `#!/bin/bash
-printf '%s\\n' '[watch-client-transpile] Finished transpilation with 0 errors after 200 ms' '[watch-client          ] Finished watch-client-noEmit src/tsconfig.json with 0 errors.' '[watch-extensions      ] Finished compilation'
-${runtimeReady ? `printf '\\033[32m[watch-extensions      ] [pi-chat] Runtime bundle and image decoder built\\033[39m\\n'` : ''}
+printf '%s\\n' '[watch-client-transpile] Finished transpilation with 0 errors after 200 ms' '[watch-client          ] Finished compilation api-proposal-names with 0 errors' '[watch-extensions      ] Finished compilation'
+${missingStep !== 'client typecheck' ? `printf '[watch-client          ] Finished \\033[32mwatch-client-noEmit\\033[39m src/tsconfig.json with 0 errors.\\n'` : ''}
+${missingStep !== 'Pi runtime bundle' ? `printf '\\033[32m[watch-extensions      ] [pi-chat] Runtime bundle and image decoder built\\033[39m\\n'` : ''}
 while true; do /bin/sleep 1; done
 `,
 					// Keep timeout coverage fast without changing the production deadline.
@@ -43,7 +44,7 @@ while true; do /bin/sleep 1; done
 					return result;
 				};
 				const first = run();
-				if (runtimeReady) {
+				if (!missingStep) {
 					assert.strictEqual(first.status, 0, first.stdout + first.stderr);
 					assert.match(first.stdout, /Initial watch build ready.*Launching the dev app/);
 					assert.match(await readFile(join(root, 'launched'), 'utf8'), /--persistent-profile\n--wait/);
@@ -52,8 +53,8 @@ while true; do /bin/sleep 1; done
 					assert.match(second.stdout, /Reusing watcher/);
 				} else {
 					assert.strictEqual(first.status, 1, first.stdout + first.stderr);
-					assert.match(first.stdout, /Build pending.*watcher PID \d+.*Pi runtime bundle/);
-					assert.match(first.stderr, /Timed out waiting for the watch build: Pi runtime bundle/);
+					assert.match(first.stdout, /Build pending.*watcher PID \d+/);
+					assert.ok(first.stderr.includes(`Timed out waiting for the watch build: ${missingStep}`), first.stderr);
 					await assert.rejects(readFile(join(root, 'launched')), { code: 'ENOENT' });
 				}
 			} finally {

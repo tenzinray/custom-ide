@@ -9,6 +9,8 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 LOGS="$ROOT/logs"
 mkdir -p "$LOGS"
 PID_FILE="$LOGS/watch.pid"
+echo "[$(date -u +%FT%TZ)] Launcher PID $$ (parent $PPID), repo $ROOT"
+echo "Runtime: node $(command -v node) ($(node --version)); pnpm $(command -v pnpm)"
 
 # Preview Hub keeps the launcher attached so it can track and stop this exact dev app.
 launcher_args=(--repo "$ROOT" --skip-prelaunch --persistent-profile)
@@ -87,7 +89,7 @@ for ((attempt = 0; attempt < 300; attempt++)); do
 	elapsed=$((SECONDS - wait_started))
 	pending=()
 	if ! grep -Fq 'Finished transpilation with 0 errors' "$LOGS/watch.log"; then pending+=('client transpilation'); fi
-	if ! grep -Eq '\[watch-client(-noEmit)?[[:space:]]*\].*with 0 errors' "$LOGS/watch.log"; then pending+=('client typecheck'); fi
+	if ! grep -Eq '\[watch-client(-noEmit)?[[:space:]]*\].*Finished.*watch-client-noEmit.*with 0 errors' "$LOGS/watch.log"; then pending+=('client typecheck'); fi
 	if ! grep -Eq '\[watch-extensions[^]]*\].*Finished compilation' "$LOGS/watch.log"; then pending+=('extension compilation'); fi
 	# Match the stable bundle prefix; the message may also describe bundled assets (e.g. the image decoder).
 	if ! grep -Fq '[pi-chat] Runtime bundle' "$LOGS/watch.log"; then pending+=('Pi runtime bundle'); fi
@@ -98,6 +100,10 @@ for ((attempt = 0; attempt < 300; attempt++)); do
 	if [[ "${pending[*]}" != "$previous_pending" ]] || (( attempt % 15 == 0 )); then
 		echo "[$(date -u +%FT%TZ)] Build pending (${elapsed}s, watcher PID $(<"$PID_FILE")): ${pending[*]}. See $LOGS/watch.log"
 		previous_pending="${pending[*]}"
+		if (( attempt > 0 && attempt % 15 == 0 )); then
+			echo 'Latest watcher output:'
+			tail -n 5 "$LOGS/watch.log"
+		fi
 	fi
 	if ! kill -0 "$(<"$PID_FILE")" 2>/dev/null; then
 		echo "Watcher exited before the build finished. See $LOGS/watch.log" >&2

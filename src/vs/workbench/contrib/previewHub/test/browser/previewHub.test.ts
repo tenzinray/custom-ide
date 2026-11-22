@@ -58,6 +58,20 @@ suite('PreviewHub presentation', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	test('Pide Open Preview stays clickable during startup and pending controls, with every click forwarded', () => {
+		const host = mainWindow.document.createElement('div');
+		let requests = 0;
+		const card = store.add(new PreviewHubAppCard(host, previewHubApps.find(app => app.id === 'pide')!, () => {}, () => {}, () => { requests++; }, () => {}));
+		const preview = host.querySelector<HTMLButtonElement>('.preview-hub-actions button:last-child')!;
+		const state: PreviewHubAppState = { id: 'pide', phase: 'starting', launcherLog: '/log', components: [{ id: 'watcher', running: true }, { id: 'app', running: false }] };
+		card.update(state, true);
+		preview.click();
+		preview.click();
+		card.update({ ...state, phase: 'running' }, false);
+		preview.click();
+		assert.deepStrictEqual({ disabled: preview.disabled, requests }, { disabled: false, requests: 3 });
+	});
+
 	test('commands stay hidden until the app title is clicked and processes preserve disclosure state', () => {
 		const host = mainWindow.document.createElement('div');
 		const card = store.add(new PreviewHubAppCard(host, previewHubApps[0], () => {}, () => {}, () => {}, () => {}));

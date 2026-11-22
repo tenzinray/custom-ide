@@ -82,6 +82,60 @@ suite('PreviewHubProcesses', () => {
 		}
 	});
 
+	test('concurrent Pide preview clicks launch once, then forward every additional window request', async function () {
+		if (process.platform !== 'darwin') { this.skip(); }
+		this.timeout(20_000);
+		const directory = await mkdtemp(join(tmpdir(), 'preview-hub-windows-'));
+		const root = join(directory, 'custom-ide');
+		const appPath = join(root, '.build/electron/Pide.app/Contents/MacOS/Pide');
+		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
+		try {
+			await mkdir(dirname(appPath), { recursive: true });
+			await mkdir(join(root, 'scripts'));
+			await writeFile(appPath, 'setInterval(() => {}, 1000);');
+			await writeFile(join(root, 'scripts/watch-and-launch.sh'), `${JSON.stringify(process.execPath)} ${JSON.stringify(appPath)} --user-data-dir=${root}/profile &\nwait\n`);
+			await writeFile(join(root, 'scripts/code.sh'), 'printf "new-window\\n" >> windows\n');
+			await Promise.all([service.openPideWindow(), service.openPideWindow(), service.openPideWindow()]);
+			const log = await readFile(join(root, 'logs/preview-hub-launch.log'), 'utf8');
+			assert.deepStrictEqual({ windows: (await readFile(join(root, 'windows'), 'utf8')).trim().split('\n'), launches: log.match(/Starting bash scripts\/watch-and-launch.sh/g)?.length, received: log.match(/Window request \d+ received/g)?.length, forwarded: log.match(/--new-window command completed successfully/g)?.length }, {
+				windows: ['new-window', 'new-window'], launches: 1, received: 3, forwarded: 2,
+			});
+		} finally {
+			await service.stop('pide');
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('Stop cancels queued Pide windows without restarting the app', async function () {
+		if (process.platform !== 'darwin') { this.skip(); }
+		this.timeout(20_000);
+		const directory = await mkdtemp(join(tmpdir(), 'preview-hub-cancel-'));
+		const root = join(directory, 'custom-ide');
+		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
+		await mkdir(join(root, 'scripts'), { recursive: true });
+		await writeFile(join(root, 'scripts/watch-and-launch.sh'), 'touch ready\nwhile true; do sleep 1; done\n');
+		const ready = new DeferredPromise<boolean>();
+		const watcher = watch(root, (_event, filename) => {
+			if (filename === 'ready') { void ready.complete(true); }
+		});
+		try {
+			const results = Promise.allSettled([service.openPideWindow(), service.openPideWindow()]);
+			assert.strictEqual(await raceTimeout(ready.p, 10_000), true);
+			await service.stop('pide');
+			const outcomes = await results;
+			const log = await readFile(join(root, 'logs/preview-hub-launch.log'), 'utf8');
+			assert.deepStrictEqual({ outcomes: outcomes.map(result => result.status === 'rejected' ? result.reason.message : result.status), launches: log.match(/Starting bash scripts\/watch-and-launch.sh/g)?.length }, {
+				outcomes: ['Dev window request cancelled by Stop.', 'Dev window request cancelled by Stop.'], launches: 1,
+			});
+		} finally {
+			watcher.close();
+			await service.stop('pide');
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	for (const app of previewHubApps.filter(app => app.id !== 'pide')) {
 		test(`${app.id}: empty shell overrides preserve npm PATH and allow stop then restart`, async function () {
 			if (process.platform !== 'darwin') { this.skip(); }

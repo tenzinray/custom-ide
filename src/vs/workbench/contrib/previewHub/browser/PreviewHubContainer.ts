@@ -66,12 +66,14 @@ export class PreviewHubContainer extends Disposable {
 	}
 
 	private async control(id: PreviewHubAppId, action: 'start' | 'stop' | 'preview'): Promise<void> {
-		if (this.pending.has(id)) { return; }
-		if ((action === 'start' || (action === 'preview' && id === 'pide')) && !this.trust.isWorkspaceTrusted()) {
+		const pidePreview = action === 'preview' && id === 'pide';
+		if (this.pending.has(id) && !pidePreview) { return; }
+		if ((action === 'start' || pidePreview) && !this.trust.isWorkspaceTrusted()) {
 			this.notifications.warn(localize('previewHub.trust', "Trust this workspace before starting local commands."));
 			return;
 		}
-		this.pending.add(id);
+		// Window requests are queued by the main service, independently of Start/Stop controls.
+		if (!pidePreview) { this.pending.add(id); }
 		if (this.state) { this.update(this.state); }
 		try {
 			if (action === 'start') { await this.hub.start(id); }
@@ -84,7 +86,7 @@ export class PreviewHubContainer extends Disposable {
 		}
 		catch (error) { this.notifications.error(error); }
 		finally {
-			this.pending.delete(id);
+			if (!pidePreview) { this.pending.delete(id); }
 			if (!this._store.isDisposed) { this.update(await this.hub.getSnapshot()); }
 		}
 	}

@@ -82,7 +82,7 @@ export class PreviewHubAppCard extends Disposable {
 		this.start.textContent = anyRunning && !allRunning ? localize('previewHub.startMissing', "Start Missing") : localize('previewHub.start', "Start");
 		this.stop.disabled = pending || state.phase === 'stopping' || (!anyRunning && (state.phase === 'stopped' || state.phase === 'error'));
 		if (this.preview) {
-			this.preview.disabled = this.app.id === 'pide' ? pending || state.phase === 'starting' || state.phase === 'stopping' : !state.previewUrl;
+			this.preview.disabled = this.app.id === 'pide' ? false : !state.previewUrl;
 		}
 		this.error.textContent = state.error ?? '';
 	}
