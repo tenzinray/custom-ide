@@ -92,6 +92,10 @@
 @media (prefers-reduced-motion: reduce) { .pi-chat-playback-generating .pi-chat-playback-fill { animation: none; } }
 .pi-chat-assistant-text p { margin: 0 0 13px; }
 .pi-chat-assistant-text p:last-child { margin-bottom: 0; }
+.pi-chat-assistant-text table { width: 100%; margin: var(--vscode-spacing-size120) 0; border-collapse: collapse; background: color-mix(in srgb, var(--vscode-foreground) 3%, var(--vscode-editor-background)); }
+.pi-chat-assistant-text th, .pi-chat-assistant-text td { padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120); border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-panel-border, color-mix(in srgb, var(--vscode-foreground) 20%, var(--vscode-editor-background)))); vertical-align: top; }
+.pi-chat-assistant-text th { background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background)); font-weight: var(--vscode-fontWeight-semiBold); }
+.pi-chat-assistant-text th:not([align]) { text-align: left; }
 .pi-chat-assistant-text pre { overflow-x: auto; padding: 14px; border: 1px solid var(--vscode-panel-border); border-radius: 10px; background: var(--vscode-editorWidget-background); }
 .pi-chat-assistant-text code { padding: 2px 5px; border-radius: 4px; background: var(--vscode-editorWidget-background); color: var(--vscode-textPreformat-foreground); }
 .pi-chat-assistant-text a, .pi-chat-file-link { color: var(--vscode-textLink-foreground); }
