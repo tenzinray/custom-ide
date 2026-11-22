@@ -27,11 +27,12 @@ suite('PreviewHubPideWindow', () => {
 		if (process.platform !== 'darwin') { this.skip(); }
 		const root = await mkdtemp(join(tmpdir(), 'preview-hub-window-'));
 		try {
-			await mkdir(join(root, 'scripts'));
+			await mkdir(join(root, 'scripts/code-oss-launcher'), { recursive: true });
+			await writeFile(join(root, 'scripts/code-oss-launcher/waitForWorkbench.ts'), `console.log(JSON.stringify(process.argv[4] === '--list' ? ['existing-window'] : { status: 'ready', windowId: 'new-window' }));`);
 			await writeFile(join(root, 'scripts/code.sh'), 'printf "%s\\n" "$@" >> "$PWD/window-requests"\n');
 			const command = 'Pide . --user-data-dir=/existing/profile --shared-data-dir=/existing/shared --remote-debugging-port=1234';
-			await openPreviewHubPideWindow(root, command, process.env);
-			await openPreviewHubPideWindow(root, command, process.env);
+			await openPreviewHubPideWindow(root, command, process.env, process.pid);
+			await openPreviewHubPideWindow(root, command, process.env, process.pid);
 			assert.deepStrictEqual((await readFile(join(root, 'window-requests'), 'utf8')).trim().split('\n'), [
 				'--new-window', '--user-data-dir=/existing/profile', '--shared-data-dir=/existing/shared',
 				'--new-window', '--user-data-dir=/existing/profile', '--shared-data-dir=/existing/shared',

@@ -29,16 +29,25 @@ export function getPreviewHubPideWindowArgs(command: string): string[] {
 }
 
 /** code.sh forwards --new-window to the running dev app without creating or resyncing a profile. */
-export async function openPreviewHubPideWindow(root: string, command: string, env: IProcessEnvironment): Promise<void> {
+export async function openPreviewHubPideWindow(root: string, command: string, env: IProcessEnvironment, pid: number): Promise<void> {
 	const args = getPreviewHubPideWindowArgs(command);
 	const log = join(root, previewHubLauncherLogPath);
 	await mkdir(join(root, 'logs'), { recursive: true });
 	await appendFile(log, `[Preview Hub] ${new Date().toISOString()} Opening another dev window\n`);
 	try {
-		const { stdout, stderr } = await exec('/bin/bash', args, { cwd: root, env: { ...env, VSCODE_SKIP_PRELAUNCH: '1' }, timeout: 15_000, maxBuffer: 1024 * 1024 });
+		const port = /(?:^|\s)--remote-debugging-port(?:=|\s+)(?<port>\d+)(?:\s|$)/.exec(command)?.groups?.port;
+		if (!port) { throw new Error(localize('previewHub.noDevCdp', "The running dev app has no CDP port; its window cannot be verified. Check the launcher log.")); }
+		const verifyArgs = ['scripts/code-oss-launcher/waitForWorkbench.ts', String(pid), port];
+		const options = { cwd: root, env: { ...env, VSCODE_SKIP_PRELAUNCH: '1' }, maxBuffer: 1024 * 1024 };
+		const before = await exec('node', [...verifyArgs, '--list'], { ...options, timeout: 5000 });
+		await appendFile(log, `[Preview Hub] ${new Date().toISOString()} Existing windows for PID ${pid}, CDP ${port}: ${before.stdout.trim()}\n`);
+		const { stdout, stderr } = await exec('/bin/bash', args, { ...options, timeout: 15_000 });
 		if (stdout || stderr) { await appendFile(log, stdout + stderr); }
+		const verified = await exec('node', [...verifyArgs, '30000', before.stdout.trim()], { ...options, timeout: 35_000 });
+		await appendFile(log, `[Preview Hub] ${new Date().toISOString()} New window verification: ${verified.stdout.trim()}\n${verified.stderr}`);
 	} catch (error) {
-		await appendFile(log, `[Preview Hub] New window failed: ${error instanceof Error ? error.message : String(error)}\n`);
+		const output = error as Error & { stdout?: string; stderr?: string };
+		await appendFile(log, `[Preview Hub] ${new Date().toISOString()} New window failed: ${output.message ?? String(error)}\n${output.stdout ?? ''}${output.stderr ?? ''}`);
 		throw error;
 	}
 }

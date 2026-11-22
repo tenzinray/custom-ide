@@ -19,6 +19,7 @@ import { writeStderr, writeStdout } from './lib/output.ts';
 import { updateLaunchSettings } from './lib/settings.ts';
 import { preparePersistentProfile } from './lib/persistentProfile.ts';
 import { waitForCdp } from './waitForCdp.ts';
+import { waitForWorkbench, type WorkbenchWaitResult } from './waitForWorkbench.ts';
 
 const CDP_TIMEOUT_MS = 90_000;
 
@@ -52,7 +53,8 @@ interface IReuseManifest {
 class UsageError extends Error { }
 
 function log(message: string): void {
-	writeStderr(`[launch] ${message}\n`);
+	const attempt = process.env.PREVIEW_HUB_ATTEMPT_ID;
+	writeStderr(`[launch] ${attempt ? `[${attempt}] ${new Date().toISOString()} ` : ''}${message}\n`);
 }
 
 function readArguments(): { args: string[]; fromPowerShell: boolean } {
@@ -156,6 +158,7 @@ async function main(): Promise<number> {
 		await validateExtensionSelection(path.join(sourceUserDataDir, 'extensions'), options.extensions.ids);
 	}
 
+	log(`profile preparation started; runtime ${process.execPath} ${process.version}`);
 	const { runDir, reused } = await createRunDir(repo, sourceUserDataDir, options);
 	let codePid: number | undefined;
 	let disposeSignalHandlers: (() => void) | undefined;
@@ -171,6 +174,7 @@ async function main(): Promise<number> {
 		const preLaunch = options.skipPreLaunch ? undefined : runPreLaunch(repo, logFile);
 		const hasGitHubSession = await prepareProfile(repo, sourceUserDataDir, sourceProfileExists, runDir, userDataDir, extensionsDir, sharedDataDir, reused, options);
 		const profileReadyAt = performance.now();
+		log(`profile preparation finished; user-data-dir=${userDataDir}, elapsed=${Math.round(profileReadyAt - startedAt)}ms`);
 
 		if (preLaunch) {
 			if (!await preLaunch) {
@@ -200,6 +204,7 @@ async function main(): Promise<number> {
 		const code = await startCode(repo, codeScript, launchArgs, logFile, options.wait);
 		const pid = code.pid;
 		codePid = pid;
+		log(`application spawned; PID=${pid}, CDP=${cdpPort}`);
 		if (options.wait) {
 			const onSignal = (signal: NodeJS.Signals) => {
 				receivedSignal = signal;
@@ -217,8 +222,8 @@ async function main(): Promise<number> {
 		log(`waiting for CDP on port ${cdpPort} (timeout ${CDP_TIMEOUT_MS / 1000}s)...`);
 		const ready = await waitForCdp(pid, cdpPort, CDP_TIMEOUT_MS);
 		if (ready.status !== 'ready') {
-			log(ready.status === 'timeout' ? `timed out waiting for CDP on port ${cdpPort}. Log tail:` : `Code OSS (PID ${pid}) exited before CDP came up. Log tail:`);
-			writeLogTail(logFile);
+			log(ready.status === 'timeout' ? `timed out waiting for CDP on port ${cdpPort}. Log tails:` : `Code OSS (PID ${pid}) exited before CDP came up. Log tails:`);
+			await writeApplicationLogTails(logFile, userDataDir);
 			stopCodeProcesses(runDir, pid);
 			if (options.wait) {
 				await code.exited;
@@ -226,6 +231,19 @@ async function main(): Promise<number> {
 			return 1;
 		}
 		log(`CDP ready after ${ready.elapsedMs}ms`);
+		let workbench: WorkbenchWaitResult | undefined;
+		if (process.env.PREVIEW_HUB_ATTEMPT_ID) {
+			log('workbench verification started (timeout 30s)');
+			workbench = await waitForWorkbench(pid, cdpPort, 30_000, log);
+			if (workbench.status !== 'ready') {
+				log(`WORKBENCH ${workbench.status}: ${workbench.detail}. Application log tails:`);
+				await writeApplicationLogTails(logFile, userDataDir);
+				stopCodeProcesses(runDir, pid);
+				if (options.wait) { await code.exited; }
+				return 1;
+			}
+			log(`workbench rendered; window=${workbench.windowId}, elapsed=${workbench.elapsedMs}ms`);
+		}
 		if (hasGitHubSession === false) {
 			log(`WARNING: source profile ${sourceUserDataDir} has no stored GitHub session; the launched instance will prompt you to sign in.`);
 			log('Sign in to your source Code OSS profile before launching to seed authentication. Credentials are copied locally, never printed.');
@@ -234,6 +252,8 @@ async function main(): Promise<number> {
 
 		const finishedAt = performance.now();
 		writeStdout(JSON.stringify({
+			attemptId: process.env.PREVIEW_HUB_ATTEMPT_ID,
+			workbench,
 			pid,
 			cdpPort,
 			extHostPort,
@@ -494,6 +514,23 @@ async function allocatePorts(count: number): Promise<number[]> {
 
 function readProduct(repo: string): { nameShort: string; sharedDataFolderName?: string } {
 	return JSON.parse(readFileSync(path.join(repo, 'product.json'), 'utf8'));
+}
+
+async function writeApplicationLogTails(logFile: string, userDataDir: string): Promise<void> {
+	log(`application stdout/stderr: ${logFile}`);
+	writeLogTail(logFile);
+	try {
+		const root = path.join(userDataDir, 'logs');
+		const latest = (await fs.readdir(root)).filter(name => /^\d{8}T\d{6}$/.test(name)).sort().at(-1);
+		if (!latest) { return; }
+		const directory = path.join(root, latest);
+		log(`most recent profile logs: ${directory}`);
+		writeLogTail(path.join(directory, 'main.log'));
+		for (const window of (await fs.readdir(directory)).filter(name => /^window\d+$/.test(name)).slice(-3)) {
+			log(`renderer log: ${path.join(directory, window, 'renderer.log')}`);
+			writeLogTail(path.join(directory, window, 'renderer.log'));
+		}
+	} catch { /* The app may have exited before its profile logs were created. */ }
 }
 
 function writeLogTail(logFile: string): void {

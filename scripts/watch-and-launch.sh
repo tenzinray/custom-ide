@@ -9,8 +9,10 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 LOGS="$ROOT/logs"
 mkdir -p "$LOGS"
 PID_FILE="$LOGS/watch.pid"
-echo "[$(date -u +%FT%TZ)] Launcher PID $$ (parent $PPID), repo $ROOT"
-echo "Runtime: node $(command -v node) ($(node --version)); pnpm $(command -v pnpm)"
+ATTEMPT_ID="${PREVIEW_HUB_ATTEMPT_ID:-manual-$$}"
+if [[ "$ATTEMPT_ID" == *[!a-zA-Z0-9-]* ]]; then echo 'Invalid launch attempt ID' >&2; exit 1; fi
+echo "[$(date -u +%FT%TZ)] Attempt $ATTEMPT_ID, launcher PID $$ (parent $PPID), repo $ROOT"
+echo "Runtime: node $(command -v node) ($(node --version)); pnpm $(command -v pnpm) ($(pnpm --version)); required Node $(<"$ROOT/.nvmrc")"
 
 # Preview Hub keeps the launcher attached so it can track and stop this exact dev app.
 launcher_args=(--repo "$ROOT" --skip-prelaunch --persistent-profile)
@@ -62,17 +64,23 @@ if [[ ! -d "$ROOT/node_modules" ]]; then
 fi
 
 # Finish first-time setup before watching so the initial build cannot race the watcher.
-echo "Preparing Code OSS (log: $LOGS/prelaunch.log)..."
-if ! (cd "$ROOT" && node build/lib/preLaunch.ts) > "$LOGS/prelaunch.log" 2>&1; then
-	tail -n 60 "$LOGS/prelaunch.log" >&2
+prelaunch_log="$LOGS/preview-hub-$ATTEMPT_ID-prelaunch.log"
+ln -sfn "$(basename "$prelaunch_log")" "$LOGS/prelaunch.log"
+echo "[$(date -u +%FT%TZ)] Prelaunch started (attempt $ATTEMPT_ID, log: $prelaunch_log)..."
+if ! (cd "$ROOT" && node build/lib/preLaunch.ts) > "$prelaunch_log" 2>&1; then
+	echo "[$(date -u +%FT%TZ)] Prelaunch FAILED (attempt $ATTEMPT_ID)" >&2
+	tail -n 60 "$prelaunch_log" >&2
 	exit 1
 fi
 
+echo "[$(date -u +%FT%TZ)] Prelaunch finished (attempt $ATTEMPT_ID)"
 if [[ -f "$PID_FILE" ]] && kill -0 "$(<"$PID_FILE")" 2>/dev/null; then
 	echo "Reusing watcher (PID $(<"$PID_FILE"), log: $LOGS/watch.log)"
 else
-	echo "Starting watcher (log: $LOGS/watch.log)..."
-	(cd "$ROOT" && exec pnpm run watch) > "$LOGS/watch.log" 2>&1 &
+	watch_log="$LOGS/preview-hub-$ATTEMPT_ID-watch.log"
+	ln -sfn "$(basename "$watch_log")" "$LOGS/watch.log"
+	echo "[$(date -u +%FT%TZ)] Starting watcher (attempt $ATTEMPT_ID, log: $watch_log)..."
+	(cd "$ROOT" && exec pnpm run watch) > "$watch_log" 2>&1 &
 	watch_pid=$!
 	echo "$watch_pid" > "$PID_FILE"
 	if ! kill -0 "$watch_pid" 2>/dev/null; then
@@ -81,15 +89,15 @@ else
 	fi
 fi
 
-# The first watch pass cleans and rewrites out/. Launching before it finishes opens a blank window.
-echo "Waiting for the initial watch build to finish..."
+# The first watch pass cleans and rewrites out/. Wait for runtime output, not the
+# non-emitting client typecheck: diagnostics keep running but must not block a window.
+echo "Waiting for the initial runtime build (client typechecking continues in the background)..."
 previous_pending=''
 wait_started=$SECONDS
 for ((attempt = 0; attempt < 300; attempt++)); do
 	elapsed=$((SECONDS - wait_started))
 	pending=()
 	if ! grep -Fq 'Finished transpilation with 0 errors' "$LOGS/watch.log"; then pending+=('client transpilation'); fi
-	if ! grep -Eq '\[watch-client(-noEmit)?[[:space:]]*\].*Finished.*watch-client-noEmit.*with 0 errors' "$LOGS/watch.log"; then pending+=('client typecheck'); fi
 	if ! grep -Eq '\[watch-extensions[^]]*\].*Finished compilation' "$LOGS/watch.log"; then pending+=('extension compilation'); fi
 	# Match the stable bundle prefix; the message may also describe bundled assets (e.g. the image decoder).
 	if ! grep -Fq '[pi-chat] Runtime bundle' "$LOGS/watch.log"; then pending+=('Pi runtime bundle'); fi

@@ -15,6 +15,9 @@ export interface IPersistentProfileSeed {
 	readonly sourceSharedDataDir: string;
 }
 
+// The Preview Hub asks this module for profile identity instead of duplicating its default path.
+if (import.meta.main) { console.log(JSON.stringify({ userDataDir: path.join(getPersistentProfileDirectory(), 'user-data') })); }
+
 /** Normal user launches keep their state here; agent/test launches remain isolated. */
 export function getPersistentProfileDirectory(): string {
 	return path.resolve(process.env.CODE_OSS_DEV_PERSISTENT_PROFILE_DIR ?? path.join(os.homedir(), '.vscode-oss-dev-profile'));

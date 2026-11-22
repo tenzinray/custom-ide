@@ -17,6 +17,12 @@ import { previewHubApps } from '../../common/previewHubApps.js';
 import { PreviewHubProcessService } from '../../node/PreviewHubProcessService.js';
 import { findPreviewHubProcesses, parsePreviewHubListeners, stopPreviewHubProcesses } from '../../node/previewHubProcesses.js';
 
+async function preparePideLauncherFixture(root: string): Promise<void> {
+	await mkdir(join(root, 'scripts/code-oss-launcher/lib'), { recursive: true });
+	await writeFile(join(root, 'scripts/code-oss-launcher/lib/persistentProfile.ts'), `console.log(JSON.stringify({ userDataDir: ${JSON.stringify(join(root, 'profile'))} }));`);
+	await writeFile(join(root, 'scripts/code-oss-launcher/waitForWorkbench.ts'), `console.log(JSON.stringify(process.argv[4] === '--list' ? ['existing-window'] : { status: 'ready', windowId: 'new-window' }));`);
+}
+
 suite('PreviewHubProcesses', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -53,6 +59,7 @@ suite('PreviewHubProcesses', () => {
 		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
 		await mkdir(join(root, 'scripts'), { recursive: true });
 		await mkdir(join(root, 'logs'));
+		await preparePideLauncherFixture(root);
 		await writeFile(join(root, 'scripts/watch-and-launch.sh'), 'exit 7\n');
 		await writeFile(join(root, 'pnpm'), 'setInterval(() => {}, 1000);');
 		const watcher = spawn(process.execPath, [join(root, 'pnpm'), 'run', 'watch'], { cwd: root, stdio: 'ignore' });
@@ -69,7 +76,7 @@ suite('PreviewHubProcesses', () => {
 			await service.start('pide');
 			assert.strictEqual(await raceTimeout(logged.p, 10_000), true);
 			const state = (await service.snapshot()).find(state => state.id === 'pide')!;
-			assert.deepStrictEqual({ phase: state.phase, components: state.components, error: state.error, launcher: (await readFile(logPath, 'utf8')).includes('Starting bash scripts/watch-and-launch.sh --preview-hub') }, {
+			assert.deepStrictEqual({ phase: state.phase, components: state.components, error: state.error, launcher: (await readFile(logPath, 'utf8')).includes('command=bash scripts/watch-and-launch.sh --preview-hub') }, {
 				phase: 'error', components: [{ id: 'watcher', running: true }, { id: 'app', running: false }],
 				error: 'Process exited with code 7 (signal: none). Open the launcher log for details.', launcher: true,
 			});
@@ -91,17 +98,42 @@ suite('PreviewHubProcesses', () => {
 		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
 		try {
 			await mkdir(dirname(appPath), { recursive: true });
-			await mkdir(join(root, 'scripts'));
+			await preparePideLauncherFixture(root);
 			await writeFile(appPath, 'setInterval(() => {}, 1000);');
-			await writeFile(join(root, 'scripts/watch-and-launch.sh'), `${JSON.stringify(process.execPath)} ${JSON.stringify(appPath)} --user-data-dir=${root}/profile &\nwait\n`);
+			await writeFile(join(root, 'scripts/watch-and-launch.sh'), `${JSON.stringify(process.execPath)} ${JSON.stringify(appPath)} --user-data-dir=${root}/profile --remote-debugging-port=9222 &\napp_pid=$!\nprintf '{"attemptId":"%s","pid":%s,"cdpPort":9222,"userDataDir":"%s/profile","logFile":"%s/app.log","workbench":{"status":"ready","windowId":"initial-window"}}\\n' "$PREVIEW_HUB_ATTEMPT_ID" "$app_pid" ${JSON.stringify(root)} ${JSON.stringify(root)}\nwait\n`);
 			await writeFile(join(root, 'scripts/code.sh'), 'printf "new-window\\n" >> windows\n');
 			await Promise.all([service.openPideWindow(), service.openPideWindow(), service.openPideWindow()]);
 			const log = await readFile(join(root, 'logs/preview-hub-launch.log'), 'utf8');
-			assert.deepStrictEqual({ windows: (await readFile(join(root, 'windows'), 'utf8')).trim().split('\n'), launches: log.match(/Starting bash scripts\/watch-and-launch.sh/g)?.length, received: log.match(/Window request \d+ received/g)?.length, forwarded: log.match(/--new-window command completed successfully/g)?.length }, {
+			assert.deepStrictEqual({ windows: (await readFile(join(root, 'windows'), 'utf8')).trim().split('\n'), launches: log.match(/command=bash scripts\/watch-and-launch.sh/g)?.length, received: log.match(/Window request \d+ received/g)?.length, forwarded: log.match(/new rendered window verified/g)?.length }, {
 				windows: ['new-window', 'new-window'], launches: 1, received: 3, forwarded: 2,
 			});
 		} finally {
 			await service.stop('pide');
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('another agent’s temporary profile neither counts as a running Pide preview nor gets stopped', async function () {
+		if (process.platform !== 'darwin') { this.skip(); }
+		this.timeout(20_000);
+		const directory = await mkdtemp(join(tmpdir(), 'preview-hub-agent-'));
+		const root = join(directory, 'custom-ide');
+		const appPath = join(root, '.build/electron/Pide.app/Contents/MacOS/Pide');
+		await mkdir(dirname(appPath), { recursive: true });
+		await preparePideLauncherFixture(root);
+		await writeFile(appPath, 'setInterval(() => {}, 1000);');
+		const agent = spawn(process.execPath, [appPath, `--user-data-dir=${root}/agent-profile`], { cwd: root, stdio: 'ignore' });
+		const exited = once(agent, 'exit');
+		await once(agent, 'spawn');
+		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
+		try {
+			const state = (await service.snapshot()).find(state => state.id === 'pide')!;
+			await service.stop('pide');
+			assert.deepStrictEqual({ phase: state.phase, appRunning: state.components.find(component => component.id === 'app')?.running, agentExit: agent.exitCode }, { phase: 'stopped', appRunning: false, agentExit: null });
+		} finally {
+			agent.kill();
+			await exited;
 			service.dispose();
 			await rm(directory, { recursive: true, force: true });
 		}
@@ -114,6 +146,7 @@ suite('PreviewHubProcesses', () => {
 		const root = join(directory, 'custom-ide');
 		const service = store.add(new PreviewHubProcessService(directory, async () => ({}), new NullLogService()));
 		await mkdir(join(root, 'scripts'), { recursive: true });
+		await preparePideLauncherFixture(root);
 		await writeFile(join(root, 'scripts/watch-and-launch.sh'), 'touch ready\nwhile true; do sleep 1; done\n');
 		const ready = new DeferredPromise<boolean>();
 		const watcher = watch(root, (_event, filename) => {
@@ -125,7 +158,7 @@ suite('PreviewHubProcesses', () => {
 			await service.stop('pide');
 			const outcomes = await results;
 			const log = await readFile(join(root, 'logs/preview-hub-launch.log'), 'utf8');
-			assert.deepStrictEqual({ outcomes: outcomes.map(result => result.status === 'rejected' ? result.reason.message : result.status), launches: log.match(/Starting bash scripts\/watch-and-launch.sh/g)?.length }, {
+			assert.deepStrictEqual({ outcomes: outcomes.map(result => result.status === 'rejected' ? result.reason.message : result.status), launches: log.match(/command=bash scripts\/watch-and-launch.sh/g)?.length }, {
 				outcomes: ['Dev window request cancelled by Stop.', 'Dev window request cancelled by Stop.'], launches: 1,
 			});
 		} finally {

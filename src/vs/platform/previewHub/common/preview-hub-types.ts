@@ -24,6 +24,16 @@ export interface PreviewHubAppState {
 	readonly processes?: readonly PreviewHubProcessState[];
 }
 
+/** Verified subset of the managed launcher's JSON readiness record. */
+export interface PreviewHubPideLaunch {
+	readonly attemptId: string;
+	readonly pid: number;
+	readonly cdpPort: number;
+	readonly userDataDir: string;
+	readonly logFile: string;
+	readonly workbench: { readonly status: 'ready'; readonly windowId: string };
+}
+
 export interface PreviewHubCaffeineState {
 	readonly enabled: boolean;
 	readonly batteryPercent?: number;

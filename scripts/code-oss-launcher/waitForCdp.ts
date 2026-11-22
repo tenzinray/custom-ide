@@ -29,7 +29,7 @@ export async function waitForCdp(pid: number, port: number, timeoutMs: number): 
 	return { status: 'timeout' };
 }
 
-function isProcessRunning(pid: number): boolean {
+export function isProcessRunning(pid: number): boolean {
 	try {
 		process.kill(pid, 0);
 		return true;
@@ -41,21 +41,27 @@ function isProcessRunning(pid: number): boolean {
 	}
 }
 
-function probe(port: number, requestTimeoutMs: number): Promise<boolean> {
-	return new Promise<boolean>(resolve => {
+async function probe(port: number, requestTimeoutMs: number): Promise<boolean> {
+	const version = await readCdpJson<{ webSocketDebuggerUrl?: string }>(port, '/json/version', requestTimeoutMs);
+	return typeof version?.webSocketDebuggerUrl === 'string' && /^wss?:\/\//.test(version.webSocketDebuggerUrl);
+}
+
+/** Bounded local CDP requests shared by browser readiness and workbench diagnostics. */
+export function readCdpJson<T>(port: number, path: string, requestTimeoutMs: number): Promise<T | undefined> {
+	return new Promise<T | undefined>(resolve => {
 		let settled = false;
-		const finish = (ready: boolean) => {
+		const finish = (value?: T) => {
 			if (!settled) {
 				settled = true;
 				clearTimeout(timer);
 				request.destroy();
-				resolve(ready);
+				resolve(value);
 			}
 		};
-		const request = http.get({ host: '127.0.0.1', port, path: '/json/version' }, response => {
+		const request = http.get({ host: '127.0.0.1', port, path }, response => {
 			if (response.statusCode !== 200) {
 				response.resume();
-				finish(false);
+				finish();
 				return;
 			}
 			let body = '';
@@ -64,21 +70,16 @@ function probe(port: number, requestTimeoutMs: number): Promise<boolean> {
 				body += chunk;
 				if (body.length > 64 * 1024) {
 					response.destroy();
-					finish(false);
+					finish();
 				}
 			});
 			response.on('end', () => {
-				try {
-					const version: { webSocketDebuggerUrl?: string } = JSON.parse(body);
-					finish(typeof version?.webSocketDebuggerUrl === 'string' && /^wss?:\/\//.test(version.webSocketDebuggerUrl));
-				} catch {
-					finish(false);
-				}
+				try { finish(JSON.parse(body) as T); } catch { finish(); }
 			});
-			response.on('error', () => finish(false));
+			response.on('error', () => finish());
 		});
-		const timer = setTimeout(() => finish(false), requestTimeoutMs);
-		request.on('error', () => finish(false));
+		const timer = setTimeout(() => finish(), requestTimeoutMs);
+		request.on('error', () => finish());
 	});
 }
 
