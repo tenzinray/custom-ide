@@ -35,7 +35,9 @@
 	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 }
 
-.explorer-folders-view .monaco-list-row:is([aria-expanded="true"]:has(.explorer-project-header), :has(.explorer-project-child)):is(.selected, :hover)::before {
+/* Decorative project surfaces must not cover native list drag feedback. */
+.explorer-folders-view :is(.monaco-list, .monaco-list-rows).drop-target .monaco-list-row:has(.explorer-project-header, .explorer-project-child)::before,
+.explorer-folders-view .monaco-list-row:is([aria-expanded="true"]:has(.explorer-project-header), :has(.explorer-project-child)):is(.selected, :hover, .drop-target)::before {
 	background-color: transparent;
 }
 
