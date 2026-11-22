@@ -11,11 +11,14 @@ import { FileAuthStorageBackend } from '../node_modules/@earendil-works/pi-codin
 import { join } from 'node:path';
 import type { PiChatOpenAIAccount, PiChatOpenAIAccounts } from '../../../src/vs/workbench/contrib/piChat/common/pi-chat-openai-account-types.js';
 import { isPiChatRunning, withPiChatAccountChange } from './PiChatRunService.js';
+import { fetchPiChatOpenAILimitsWithToken } from './PiChatOpenAILimitsService.js';
+import { PiChatOpenAIAccountLimitsService } from './PiChatOpenAIAccountLimitsService.js';
 
 const provider = 'openai-codex';
 const prefix = 'pi-chat-openai-account:';
 const storage = () => new FileAuthStorageBackend(join(getAgentDir(), 'auth.json'));
 let changing = false;
+const accountLimits = new PiChatOpenAIAccountLimitsService(fetchPiChatOpenAILimitsWithToken);
 
 function account(credential: Credential | undefined): PiChatOpenAIAccount | undefined {
 	if (credential?.type !== 'oauth') { return undefined; }
@@ -36,16 +39,19 @@ function account(credential: Credential | undefined): PiChatOpenAIAccount | unde
 
 /** Active credentials remain in Pi's canonical provider slot; inactive logins use the same protected store. */
 export async function getPiChatOpenAIAccounts(): Promise<PiChatOpenAIAccounts> {
-	return storage().withLockAsync(async content => {
+	const credentials = new Map<string, Credential>();
+	const state = await storage().withLockAsync(async content => {
 		const data = JSON.parse(content ?? '{}') as Record<string, Credential>;
 		const active = account(data[provider]);
 		const accounts = new Map<string, PiChatOpenAIAccount>();
 		for (const [key, credential] of Object.entries(data)) {
-			if (key.startsWith(prefix)) { const entry = account(credential); if (entry) { accounts.set(entry.id, entry); } }
+			if (key.startsWith(prefix)) { const entry = account(credential); if (entry) { accounts.set(entry.id, entry); credentials.set(entry.id, credential); } }
 		}
-		if (active) { accounts.set(active.id, active); }
+		if (active) { accounts.set(active.id, active); credentials.set(active.id, data[provider]); }
 		return { result: { accounts: [...accounts.values()], activeId: active?.id, busy: changing || isPiChatRunning() } };
 	});
+	accountLimits.retain(state.accounts.map(account => account.id));
+	return { ...state, accounts: state.accounts.map(account => ({ ...account, limits: accountLimits.get(account.id, credentials.get(account.id)) })) };
 }
 
 async function selectAccount(id: string | undefined, credential?: Credential): Promise<void> {

@@ -188,10 +188,19 @@
 .pi-chat-account-control { position: relative; flex: 0 1 auto; min-width: 0; max-width: 50%; }
 .pi-chat-account-label { display: block; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .pi-chat-account-label.disabled { opacity: 0.6; }
-.pi-chat-conversation .pi-chat-composer-note select.pi-chat-account-picker { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; opacity: 0; color: inherit; font: inherit; cursor: pointer; }
+.pi-chat-conversation .pi-chat-composer-note button.pi-chat-account-picker { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; opacity: 0; color: inherit; font: inherit; cursor: pointer; }
 .pi-chat-account-picker:disabled { cursor: default; }
-.pi-chat-account-control:has(select:focus-visible) { outline: 1px solid var(--vscode-focusBorder); }
-.pi-chat-account-picker option { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); }
+.pi-chat-account-control:has(button:focus-visible) { outline: 1px solid var(--vscode-focusBorder); }
+.pi-chat-account-menu { min-width: 240px; max-width: min(480px, calc(100vw - 32px)); max-height: min(360px, calc(100vh - 32px)); overflow-y: auto; padding: var(--vscode-spacing-size40); border: var(--vscode-strokeThickness) solid var(--vscode-menu-border, var(--vscode-widget-border, transparent)); border-radius: var(--vscode-cornerRadius-large); background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); box-shadow: 0 4px 16px var(--vscode-widget-shadow); font-size: var(--vscode-fontSize-body1); }
+.pi-chat-account-menu .monaco-action-bar.vertical .action-item { display: flex; align-items: center; gap: var(--vscode-spacing-size120); padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80); border-radius: var(--vscode-cornerRadius-small); }
+.pi-chat-account-menu .action-item:not(.disabled):is(:hover, :focus-within) { background: var(--vscode-menu-selectionBackground); color: var(--vscode-menu-selectionForeground); }
+.pi-chat-account-menu .action-item .action-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
+.pi-chat-account-menu .action-label:focus { outline: none; }
+.pi-chat-account-menu .action-item:focus-within { outline: var(--vscode-strokeThickness) solid var(--vscode-menu-selectionBorder, transparent); outline-offset: -1px; }
+.pi-chat-account-usage { flex-shrink: 0; font-size: var(--vscode-fontSize-body2); font-variant-numeric: tabular-nums; }
+.pi-chat-account-usage-available { color: var(--vscode-charts-green); }
+.pi-chat-account-usage-blocked { color: var(--vscode-errorForeground); }
+.pi-chat-account-usage-unknown { color: var(--vscode-descriptionForeground); }
 .pi-chat-repo-label { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
 .pi-chat-composer-note strong { color: var(--vscode-foreground); font-weight: 500; }
 .pi-chat-repo-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: #0008; color: var(--vscode-foreground); font-family: var(--vscode-font-family); }

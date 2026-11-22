@@ -23,11 +23,17 @@ export async function fetchPiChatOpenAILimits(): Promise<PiChatOpenAILimits | un
 	const auth = await runtime.getAuth('openai-codex');
 	// OpenAI API keys have different limits; never present them as ChatGPT 5-hour/weekly usage.
 	if (auth?.source !== 'OAuth' || !auth.auth.apiKey) { return undefined; }
-	const headers: Record<string, string> = { Authorization: `Bearer ${auth.auth.apiKey}` };
+	return fetchPiChatOpenAILimitsWithToken(auth.auth.apiKey);
+}
+
+/** Shared quota request for active and archived OAuth logins; tokens stay in the extension host. */
+export async function fetchPiChatOpenAILimitsWithToken(accessToken: string, storedAccountId?: string): Promise<PiChatOpenAILimits> {
+	const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+	if (storedAccountId) { headers['ChatGPT-Account-Id'] = storedAccountId; }
 	try {
-		const claims = JSON.parse(Buffer.from(auth.auth.apiKey.split('.')[1], 'base64url').toString('utf8')) as { 'https://api.openai.com/auth'?: { chatgpt_account_id?: string } };
+		const claims = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8')) as { 'https://api.openai.com/auth'?: { chatgpt_account_id?: string } };
 		const accountId = claims['https://api.openai.com/auth']?.chatgpt_account_id;
-		if (accountId) { headers['ChatGPT-Account-Id'] = accountId; }
+		if (accountId && !storedAccountId) { headers['ChatGPT-Account-Id'] = accountId; }
 	} catch { /* Some access tokens are opaque. */ }
 	const response = await fetch('https://chatgpt.com/backend-api/wham/usage', { headers, signal: AbortSignal.timeout(12_000) });
 	if (!response.ok) { throw new Error(`OpenAI usage request failed (${response.status}).`); }

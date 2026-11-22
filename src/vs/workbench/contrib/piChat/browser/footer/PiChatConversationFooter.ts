@@ -9,6 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { PiChatOpenAIAccounts } from '../../common/pi-chat-openai-account-types.js';
@@ -28,7 +29,7 @@ export interface PiChatFooterControls extends IDisposable {
 }
 
 /** Composer presentation and local draft state; the conversation pane owns sending. */
-export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSummary | undefined, modelName: string | undefined, models: readonly string[], cache: PiChatInputCacheService, onSelectModel: (model: string) => void, onSend: (text: string) => Promise<void>, onStop: () => Promise<void>, speech: IChatSpeechToTextService, configuration: IConfigurationService, logService: ILogService, repoRoot: URI, onSelectAccount: (id?: string) => void): PiChatFooterControls {
+export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSummary | undefined, modelName: string | undefined, models: readonly string[], cache: PiChatInputCacheService, onSelectModel: (model: string) => void, onSend: (text: string) => Promise<void>, onStop: () => Promise<void>, speech: IChatSpeechToTextService, configuration: IConfigurationService, logService: ILogService, repoRoot: URI, onSelectAccount: (id?: string) => void, contextViews: IContextViewService): PiChatFooterControls {
 	clearNode(footer);
 	const statusBar = new MutableDisposable<PiChatTurnStatusBar>();
 	const statusHost = append(footer, $('.pi-chat-turn-status-host'));
@@ -52,7 +53,7 @@ export function renderPiChatFooter(footer: HTMLElement, summary: PiChatSessionSu
 	const dictation = new PiChatDictation(mic, dictationStatus, promptInput, speech, configuration, logService);
 	const send = append(actions, $('button.pi-chat-send.codicon.codicon-arrow-up', { 'aria-label': localize('piChat.send', "Send message"), title: localize('piChat.send', "Send message") })) as HTMLButtonElement;
 	const note = append(footer, $('.pi-chat-composer-note'));
-	const accountPicker = new PiChatOpenAIAccountPicker(note, onSelectAccount);
+	const accountPicker = new PiChatOpenAIAccountPicker(note, onSelectAccount, contextViews);
 	if (summary) {
 		const repo = URI.file(summary.repoPath);
 		append(note, $('span.pi-chat-repo-label', {}, isEqual(dirname(repo), repoRoot) ? basename(repo) : summary.repoPath));

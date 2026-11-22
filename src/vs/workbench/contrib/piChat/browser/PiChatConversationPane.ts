@@ -27,6 +27,7 @@ import { PiChatSessionHistory, PiChatSessionSummary, PiChatMessage } from '../co
 import { PiChatContextUsage } from '../common/pi-chat-context-usage-types.js';
 import { PiChatQueuedPrompt, PiChatRunEvent, PiChatRunSnapshot } from '../common/pi-chat-run-types.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { PiChatFileLinkService } from './PiChatFileLinkService.js';
 import { decoratePiChatFileLinks } from './body/PiChatFileLinks.js';
 import { decoratePiChatPermissionLinks } from './body/PiChatPermissionLinks.js';
@@ -82,7 +83,7 @@ export class PiChatConversationPane extends Disposable {
 	private showOpenAILimits = true;
 	private sessionOpenOptions: PiChatSessionOpenOptions = {};
 
-	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService, @IHoverService private readonly hover: IHoverService, @INotificationService notifications: INotificationService) {
+	constructor(parent: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService, @IMarkdownRendererService private readonly markdown: IMarkdownRendererService, @IClipboardService clipboardService: IClipboardService, @IPiChatOpenAILimitsService private readonly openAILimits: IPiChatOpenAILimitsService, @IChatSpeechToTextService private readonly speech: IChatSpeechToTextService, @IConfigurationService private readonly configuration: IConfigurationService, @ILogService private readonly logService: ILogService, @IPiChatOpenAIAccountService private readonly accounts: IPiChatOpenAIAccountService, @IPathService private readonly paths: IPathService, @IHoverService private readonly hover: IHoverService, @INotificationService notifications: INotificationService, @IContextViewService private readonly contextViews: IContextViewService) {
 		super();
 		this.loader = instantiationService.createInstance(PiChatSessionLoadService);
 		this.fileLinks = instantiationService.createInstance(PiChatFileLinkService);
@@ -254,7 +255,7 @@ export class PiChatConversationPane extends Disposable {
 				this.inputCache.setQueued(summary.id, []);
 				this.render();
 			}
-		}, this.speech, this.configuration, this.logService, joinPath(this.paths.userHome({ preferLocal: true }), 'Documents', 'VSCode'), id => { void this.accounts.change(id); });
+		}, this.speech, this.configuration, this.logService, joinPath(this.paths.userHome({ preferLocal: true }), 'Documents', 'VSCode'), id => { void this.accounts.change(id); }, this.contextViews);
 		this.footerControls.value.setAccounts(this.accounts.state);
 		this.footerControls.value.setBusy(this.sending);
 	}

@@ -7,15 +7,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { PiChatOpenAILimitWindow } from '../../common/pi-chat-openai-limits-types.js';
 import { IPiChatOpenAILimitsService } from '../PiChatOpenAILimitsService.js';
-
-function resetIn(resetsAt: number): string {
-	const minutes = Math.max(0, Math.ceil((resetsAt * 1000 - Date.now()) / 60_000));
-	const days = Math.floor(minutes / 1440);
-	const hours = Math.floor((minutes % 1440) / 60);
-	if (days) { return localize('piChat.resetDaysHours', "{0}d {1}h", days, hours); }
-	if (hours) { return localize('piChat.resetHoursMinutes', "{0}h {1}m", hours, minutes % 60); }
-	return localize('piChat.resetMinutes', "{0}m", minutes);
-}
+import { formatOpenAILimitReset } from '../openAILimitReset.js';
 
 function renderWindow(parent: HTMLElement, label: string, window: PiChatOpenAILimitWindow): void {
 	const used = Math.round(window.usedPercent);
@@ -25,7 +17,7 @@ function renderWindow(parent: HTMLElement, label: string, window: PiChatOpenAILi
 	append(row, $('span.pi-chat-limit-label', {}, label));
 	append(row, $('strong.pi-chat-limit-percent', {}, `${used}%`));
 	const reset = new Date(window.resetsAt * 1000);
-	append(row, $('time.pi-chat-limit-reset', { dateTime: reset.toISOString(), title: localize('piChat.limitResetAt', "Resets {0}", reset.toLocaleString()), 'aria-label': localize('piChat.limitResetIn', "Resets in {0}", resetIn(window.resetsAt)) }, resetIn(window.resetsAt)));
+	append(row, $('time.pi-chat-limit-reset', { dateTime: reset.toISOString(), title: localize('piChat.limitResetAt', "Resets {0}", reset.toLocaleString()), 'aria-label': localize('piChat.limitResetIn', "Resets in {0}", formatOpenAILimitReset(window.resetsAt)) }, formatOpenAILimitReset(window.resetsAt)));
 }
 
 /** Compact account-wide usage, beside (but distinct from) per-session token totals. */
