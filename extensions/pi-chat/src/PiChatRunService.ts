@@ -266,9 +266,9 @@ export async function sendPiChatPromptNow(id: string, promptId: string): Promise
 
 export function pollPiChatTurn(id: string, index: number): PiChatRunSnapshot {
 	const run = runs.get(id);
-	if (!run) { return { events: [], nextIndex: 0, running: false, queued: [] }; }
+	if (!run) { return { events: [], nextIndex: 0, running: false, compacting: false, queued: [] }; }
 	const start = Math.max(0, index - run.baseIndex);
-	return { events: run.events.slice(start), nextIndex: run.baseIndex + run.events.length, running: run.running, queued: run.queue.items };
+	return { events: run.events.slice(start), nextIndex: run.baseIndex + run.events.length, running: run.running, compacting: run.session.isCompacting, queued: run.queue.items };
 }
 
 export async function stopPiChatTurn(id: string): Promise<PiChatQueuedPrompt[]> {

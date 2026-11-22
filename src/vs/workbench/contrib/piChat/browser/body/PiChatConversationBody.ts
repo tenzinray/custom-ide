@@ -15,7 +15,7 @@ import { renderPiChatFileMarkdown } from './PiChatFileLinks.js';
 import { renderPiChatTool } from './PiChatToolMessage.js';
 
 /** Conversation body; saved and live assistant events group into Pi-style turns. */
-export function renderPiChatMessages(container: HTMLElement, history: PiChatSessionHistory, count: number, onLoadEarlier: () => void, onListen: (text: string, button: HTMLButtonElement, response: HTMLElement) => void, markdown: IMarkdownRendererService, copy: PiChatMessageCopy, queued: readonly PiChatQueuedPrompt[], onCancel: (id: string) => void, onSendNow: (id: string) => void, repoPath: string, linkFiles: (element: HTMLElement, disposables: DisposableStore) => void): DisposableStore {
+export function renderPiChatMessages(container: HTMLElement, history: PiChatSessionHistory, count: number, onLoadEarlier: () => void, onListen: (text: string, button: HTMLButtonElement, response: HTMLElement) => void, markdown: IMarkdownRendererService, copy: PiChatMessageCopy, queued: readonly PiChatQueuedPrompt[], onCancel: (id: string) => void, onSendNow: (id: string) => void, repoPath: string, linkFiles: (element: HTMLElement, disposables: DisposableStore) => void, workingStatus: HTMLElement): DisposableStore {
 	const disposables = new DisposableStore();
 	clearNode(container);
 	const messages = history.messages.slice(-count);
@@ -28,6 +28,7 @@ export function renderPiChatMessages(container: HTMLElement, history: PiChatSess
 		const empty = append(list, $('.pi-chat-empty'));
 		append(empty, $('h1', {}, localize('piChat.emptyConversation', "New Chat")));
 		renderPiChatQueuedPrompts(list, queued, onCancel, onSendNow);
+		append(list, workingStatus);
 		return disposables;
 	}
 	let assistantTurn: HTMLElement | undefined;
@@ -52,6 +53,7 @@ export function renderPiChatMessages(container: HTMLElement, history: PiChatSess
 	}
 	linkFiles(list, disposables);
 	renderPiChatQueuedPrompts(list, queued, onCancel, onSendNow);
+	append(list, workingStatus);
 	return disposables;
 }
 

@@ -39,6 +39,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { PiChatSpeakPlayback } from './body/PiChatSpeakPlayback.js';
 import { PiChatListenPlayback } from './body/PiChatListenPlayback.js';
 import { PiChatBodyScroll } from './body/PiChatBodyScroll.js';
+import { PiChatWorkingStatus } from './body/PiChatWorkingStatus.js';
 import { PiChatMessageCopy } from './body/PiChatMessageCopy.js';
 import { PiChatSessionLoadService } from './PiChatSessionLoadService.js';
 import { PiChatModelService } from './PiChatModelService.js';
@@ -69,6 +70,7 @@ export class PiChatConversationPane extends Disposable {
 	private queued: PiChatQueuedPrompt[] = [];
 	private readonly footerControls = this._register(new MutableDisposable<PiChatFooterControls>());
 	private sending = false;
+	private readonly workingStatus = new PiChatWorkingStatus();
 	private readonly modelsForSession = new Map<string, string>();
 	private models: string[] = [];
 	private defaultModel: string | undefined;
@@ -187,6 +189,7 @@ export class PiChatConversationPane extends Disposable {
 		if (summary.id === this.summary?.id && (this.sending || (summary === this.summary && this.history))) { return; }
 		if (summary.id !== this.summary?.id) { this.sending = false; this.bodyScroll.reset(); }
 		this.summary = summary;
+		this.workingStatus.setState(this.sending, false);
 		this.element.classList.remove('pi-chat-file-drag-over');
 		void this.openAILimits.load();
 		this.history = undefined;
@@ -214,6 +217,7 @@ export class PiChatConversationPane extends Disposable {
 				}
 			} else {
 				this.sending = true;
+				this.workingStatus.setState(true, snapshot.compacting);
 				this.footerControls.value?.setBusy(true);
 				void this.watchRun(summary, request);
 			}
@@ -300,7 +304,7 @@ export class PiChatConversationPane extends Disposable {
 				this.speakPlayback.connect(element, disposables);
 				decoratePiChatPermissionLinks(element, text => this.footerControls.value?.restore(text), disposables);
 				decoratePiChatFileLinks(element, this.summary!.repoPath, this.fileLinks, this.hover, disposables);
-			});
+			}, this.workingStatus.element);
 		}
 		this.bodyScroll.afterRender(follow, previousTop);
 	}
@@ -315,6 +319,7 @@ export class PiChatConversationPane extends Disposable {
 			return;
 		}
 		this.sending = true;
+		this.workingStatus.setState(true, false);
 		this.footerControls.value?.setBusy(true);
 		try {
 			if (!this.history) { this.history = await this.loader.loadSession(summary); }
@@ -328,6 +333,7 @@ export class PiChatConversationPane extends Disposable {
 		} catch (error) {
 			if (request === this.requestId && !this._store.isDisposed) {
 				this.sending = false;
+				this.workingStatus.setState(false, false);
 				this.footerControls.value?.setBusy(false);
 				this.showRunError(error);
 			}
@@ -343,6 +349,7 @@ export class PiChatConversationPane extends Disposable {
 				if (request !== this.requestId || this._store.isDisposed) { return; }
 				if (!snapshot) { throw new Error(localize('piChat.runtimeUnavailable', "Pi runtime is unavailable.")); }
 				index = snapshot.nextIndex;
+				this.workingStatus.setState(snapshot.running, snapshot.compacting);
 				for (const event of snapshot.events) { this.applyEvent(this.history!.messages, event); }
 				const changedQueue = this.queued.map(item => item.id).join(',') !== snapshot.queued.map(item => item.id).join(',');
 				if (!snapshot.running && !snapshot.events.some(event => event.type === 'complete') && this.queued.length) {
@@ -375,7 +382,7 @@ export class PiChatConversationPane extends Disposable {
 		} catch (error) {
 			if (request === this.requestId && !this._store.isDisposed) { this.showRunError(error); void this.openAILimits.refresh(); }
 		} finally {
-			if (request === this.requestId && !this._store.isDisposed) { this.sending = false; this.footerControls.value?.setBusy(false); }
+			if (request === this.requestId && !this._store.isDisposed) { this.sending = false; this.workingStatus.setState(false, false); this.footerControls.value?.setBusy(false); }
 		}
 	}
 

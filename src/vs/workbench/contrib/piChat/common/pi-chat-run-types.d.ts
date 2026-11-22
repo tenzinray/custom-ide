@@ -31,6 +31,7 @@ export interface PiChatRunSnapshot {
 	readonly events: PiChatRunEvent[];
 	readonly nextIndex: number;
 	readonly running: boolean;
+	readonly compacting: boolean;
 	readonly queued: PiChatQueuedPrompt[];
 }
 
