@@ -66,6 +66,7 @@ export async function checkSessionFile(id: string, file: string, cwd: string): P
 }
 
 async function openSession(id: string | undefined, file: string | undefined, cwd: string): Promise<Run> {
+	console.info('[Pi Chat] Opening session', { id, hasFile: !!file, cwd });
 	checkWorkspaceTrust();
 	const agentDir = getAgentDir();
 	const settingsManager = SettingsManager.create(cwd, agentDir, { projectTrusted: false });
@@ -79,8 +80,10 @@ async function openSession(id: string | undefined, file: string | undefined, cwd
 		if (!session.sessionFile) { throw new Error('Pi did not create a session.'); }
 		const run: Run = { session, modelRuntime, queue: new PiChatSteeringQueue(session), events: [], baseIndex: 0, running: false, stopRequested: false, immediate: undefined, resumeQueued: false };
 		runs.set(session.sessionId, run);
+		console.info('[Pi Chat] Session opened', { id: session.sessionId, sessionFile: session.sessionFile, model: session.model && `${session.model.provider}/${session.model.id}` });
 		return run;
 	} catch (error) {
+		console.error('[Pi Chat] Failed to open session', { id, cwd, error });
 		session.dispose();
 		throw error;
 	}
@@ -187,10 +190,12 @@ function forward(event: AgentSessionEvent, run: Run, turn: { index: number; inpu
 
 /** Start a turn without blocking the command channel; pollTurn reads the event stream. */
 export async function startPiChatTurn(id: string, file: string, cwd: string, text: string, modelName?: string): Promise<void> {
+	console.info('[Pi Chat] Start turn requested', { id, cwd, modelName, textLength: typeof text === 'string' ? text.length : undefined });
 	checkWorkspaceTrust();
 	if (typeof text !== 'string' || !text.trim() || text.length > 20_000) { throw new Error('Enter a message under 20,000 characters.'); }
 	if (accountChanging) { throw new Error(vscode.l10n.t('Wait for the account change to finish before sending a message.')); }
 	const run = await getRun(id, file, cwd);
+	console.info('[Pi Chat] Start turn resolved session', { id, sessionId: run.session.sessionId, running: run.running });
 	if (accountChanging) { throw new Error(vscode.l10n.t('Wait for the account change to finish before sending a message.')); }
 	if (run.running) { throw new Error('This Pi session already has a running turn.'); }
 	run.events.length = 0;
@@ -208,6 +213,7 @@ export async function startPiChatTurn(id: string, file: string, cwd: string, tex
 			}
 		});
 		try {
+			console.info('[Pi Chat] Turn worker started', { id, sessionId: run.session.sessionId });
 			if (modelName) {
 				const slash = modelName.indexOf('/');
 				const model = run.modelRuntime.getModel(modelName.slice(0, slash), modelName.slice(slash + 1));
@@ -216,8 +222,12 @@ export async function startPiChatTurn(id: string, file: string, cwd: string, tex
 			}
 			let nextPrompt: string | undefined = text;
 			while (nextPrompt) {
+				console.info('[Pi Chat] Sending prompt to Pi', { id, sessionId: run.session.sessionId, textLength: nextPrompt.length, stopRequested: run.stopRequested });
 				try { if (!run.stopRequested) { await run.session.prompt(nextPrompt); } }
-				catch (error) { if (!run.stopRequested) { throw error; } }
+				catch (error) {
+					console.error('[Pi Chat] Pi prompt failed', { id, sessionId: run.session.sessionId, stopRequested: run.stopRequested, error });
+					if (!run.stopRequested) { throw error; }
+				}
 				const immediate = run.immediate;
 				const next = immediate ?? (!run.stopRequested ? run.queue.takeFirst() : undefined);
 				if (!next) { break; }
@@ -227,12 +237,15 @@ export async function startPiChatTurn(id: string, file: string, cwd: string, tex
 				emit(run, { type: 'queuedSent', prompt: next });
 				nextPrompt = next.text;
 			}
+			console.info('[Pi Chat] Turn worker completed', { id, sessionId: run.session.sessionId, stopRequested: run.stopRequested });
 			emit(run, { type: 'complete' });
 		} catch (error) {
+			console.error('[Pi Chat] Turn worker failed', { id, sessionId: run.session.sessionId, error });
 			emit(run, { type: 'error', message: error instanceof Error ? error.message : 'Pi could not send this message.' });
 		} finally {
 			unsubscribe();
 			run.running = false;
+			console.info('[Pi Chat] Turn worker settled', { id, sessionId: run.session.sessionId });
 		}
 	})();
 }
@@ -273,11 +286,13 @@ export function pollPiChatTurn(id: string, index: number): PiChatRunSnapshot {
 
 export async function stopPiChatTurn(id: string): Promise<PiChatQueuedPrompt[]> {
 	const run = runs.get(id);
+	console.info('[Pi Chat] Stop turn requested', { id, foundRun: !!run, running: run?.running });
 	if (!run?.running) { return []; }
 	run.stopRequested = true;
 	const unsent = run.queue.clear();
 	run.session.abortCompaction();
 	await run.session.abort();
+	console.info('[Pi Chat] Stop turn completed', { id, sessionId: run.session.sessionId, unsent: unsent.length });
 	return unsent;
 }
 

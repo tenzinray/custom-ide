@@ -248,12 +248,19 @@ export class PiChatConversationPane extends Disposable {
 			else { this.defaultModel = value; }
 		}, text => this.send(text), async () => {
 			if (!summary) { return; }
-			const unsent = await this.commands.executeCommand<PiChatQueuedPrompt[]>('piChat.stopTurn', summary.id);
-			if (unsent?.length && this.summary?.id === summary.id) {
-				this.footerControls.value?.restore(unsent.map(item => item.text).join('\n\n'));
-				this.queued = [];
-				this.inputCache.setQueued(summary.id, []);
-				this.render();
+			this.logService.info('[Pi Chat] Stop turn command requested', { id: summary.id });
+			try {
+				const unsent = await this.commands.executeCommand<PiChatQueuedPrompt[]>('piChat.stopTurn', summary.id);
+				this.logService.info('[Pi Chat] Stop turn command resolved', { id: summary.id, unsent: unsent?.length ?? 0 });
+				if (unsent?.length && this.summary?.id === summary.id) {
+					this.footerControls.value?.restore(unsent.map(item => item.text).join('\n\n'));
+					this.queued = [];
+					this.inputCache.setQueued(summary.id, []);
+					this.render();
+				}
+			} catch (error) {
+				this.logService.error('[Pi Chat] Stop turn command failed', error);
+				throw error;
 			}
 		}, this.speech, this.configuration, this.logService, joinPath(this.paths.userHome({ preferLocal: true }), 'Documents', 'VSCode'), id => { void this.accounts.change(id); }, this.contextViews);
 		this.footerControls.value.setAccounts(this.accounts.state);
@@ -314,6 +321,7 @@ export class PiChatConversationPane extends Disposable {
 		const summary = this.summary;
 		if (!summary) { return; }
 		const request = this.requestId;
+		this.logService.info('[Pi Chat] Send requested', { id: summary.id, request, sending: this.sending, textLength: text.length });
 		if (this.sending) {
 			const queued = await this.commands.executeCommand<PiChatQueuedPrompt[]>('piChat.queuePrompt', summary.id, generateUuid(), text);
 			if (request === this.requestId && queued) { this.queued = queued; this.inputCache.setQueued(summary.id, queued); this.render(); }
@@ -326,12 +334,15 @@ export class PiChatConversationPane extends Disposable {
 			if (!this.history) { this.history = await this.loader.loadSession(summary); }
 			if (request !== this.requestId || this._store.isDisposed) { return; }
 			const modelName = this.modelsForSession.get(summary.id) ?? (this.history?.modelName !== 'Unknown model' ? this.history?.modelName : this.defaultModel);
+			this.logService.info('[Pi Chat] Start turn command requested', { id: summary.id, request, modelName });
 			await this.commands.executeCommand('piChat.startTurn', summary.id, summary.sessionFile.fsPath, summary.repoPath, text, modelName || undefined);
+			this.logService.info('[Pi Chat] Start turn command accepted', { id: summary.id, request });
 			if (request !== this.requestId || this._store.isDisposed) { return; }
 			this.history?.messages.push({ id: `live-user-${Date.now()}`, role: 'user', content: text });
 			this.render();
 			void this.watchRun(summary, request);
 		} catch (error) {
+			this.logService.error('[Pi Chat] Send failed', error);
 			if (request === this.requestId && !this._store.isDisposed) {
 				this.sending = false;
 				this.workingStatus.setState(false, false);
